@@ -130,4 +130,82 @@ runCuveBlocks();
 runFeuxGrafcet();
 runFeuxLadder();
 runFeuxBlocks();
+
+
+function runLadderCuveStop() {
+  const program = exampleLadder('cuve');
+  const machine = 'cuve';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let arret = false;
+  let arretAt = -1;
+  let vanneStopped = false;
+  for (let i = 0; i < 300; i++) {
+    const vars = { bMarche: i < 4 || arret, bArret: arret };
+    if (i === 60) arret = true;
+    if (i === 66) { arret = false; arretAt = i; }
+    if (i === 70) { vars.bMarche = true; if (i === 70) vars.bArret = false; }
+    if (i > 72) vars.bMarche = false;
+    const r = runProgram('ladder', program, vars, interp, { level: sys.level });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs);
+    if (i > 62 && i <= 66) {
+      assert(!r.outputs.vanneR, `ladder cuve stop: vanne doit couper pendant ARR\u00eat (cycle ${i})`);
+      vanneStopped = true;
+    }
+  }
+  assert(vanneStopped, 'ladder cuve stop: la vanne aurait d\u00eatre coup\u00e9e pendant ARR\u00eat');
+  assert(sys.kind === 'cuve');
+  console.log(`\u2713 Ladder cuve : ARR\u00eat coupe la vanne (niveau fig\u00e9 \u00e0 ${Math.round(sys.level)} %, cycles ${sys.cycles})`);
+}
+
+function runFeuxLadderStop() {
+  const program = exampleLadder('feux');
+  const machine = 'feux';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let arret = false;
+  let arretAt = -1;
+  let allRed = false;
+  for (let i = 0; i < 300; i++) {
+    const vars = { bMarche: i < 4 || i >= arretAt + 30, bArret: arret };
+    if (i === 60) { arret = true; arretAt = i; }
+    if (i === 66) arret = false;
+    const r = runProgram('ladder', program, vars, interp, { level: 0 });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs);
+    if (i > 80 && i < 85) {
+      assert(r.outputs.r1 && r.outputs.r2, `ladder feux stop: r1 et r2 rouges attendus (cycle ${i}), out ${JSON.stringify(r.outputs)}`);
+      assert(!r.outputs.v1 && !r.outputs.v2 && !r.outputs.o1 && !r.outputs.o2, 'ladder feux stop: vert/orange doivent \u00eatre off pendant ARR\u00eat');
+      allRed = true;
+    }
+  }
+  assert(allRed, 'ladder feux stop: la phase tout rouge n\u2019a pas \u00e9t\u00e9 observ\u00e9e');
+  console.log(`\u2713 Ladder feux : ARR\u00eat \u2192 tout rouge, puis reprise au rappui MARCHE (cycles ${sys.cycles})`);
+}
+
+function runFeuxGrafcetStop() {
+  const program = exampleGrafcet('feux');
+  const machine = 'feux';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  for (let i = 0; i < 60; i++) {
+    const vars = { bMarche: i < 4, bArret: i >= 20 && i < 26 };
+    const r = runProgram('grafcet', program, vars, interp, { level: 0 });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs);
+    if (i === 24) {
+      assert(interp.active.length === 1 && interp.active[0] === 0,
+        `grafcet feux stop: retour \u00e0 l'\u00e9tape initiale attendu, actif ${JSON.stringify(interp.active)}`);
+      assert(!r.outputs.v1 && !r.outputs.v2 && !r.outputs.r1 && !r.outputs.r2,
+        'grafcet feux stop: toutes les sorties doivent \u00eatre coup\u00e9es \u00e0 l\u2019\u00e9tape initiale');
+    }
+  }
+  console.log('\u2713 Grafcet feux : ARR\u00eat \u2192 retour \u00e0 la premi\u00e8re \u00e9tape (tout \u00e9teint), MARCHE relance');
+}
+
+runLadderCuveStop();
+runFeuxLadderStop();
+runFeuxGrafcetStop();
+
 console.log('Tous les tests moteur passent.');

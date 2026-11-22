@@ -127,6 +127,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
       { id: 'M2', label: 'M2', kind: 'internal', detail: 'Phase 2 (R1 + O2)' },
       { id: 'M3', label: 'M3', kind: 'internal', detail: 'Phase 3 (V1 + R2)' },
       { id: 'M4', label: 'M4', kind: 'internal', detail: 'Phase 4 (O1 + R2)' },
+      { id: 'Mstop', label: 'MSTOP', kind: 'internal', detail: 'Relais arr\u00eat (tout rouge)' },
     ],
     numericLabel: null,
     describe: (s) =>

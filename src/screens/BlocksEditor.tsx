@@ -8,8 +8,8 @@ import { exampleBlocks } from '../programs/examples';
 import { Card, Chip, Pill, Screen, SectionTitle } from '../components/ui';
 import ConditionListEditor, { conditionLabel, contactItems } from '../components/ConditionListEditor';
 
-function EMPTY_CONDITION(): BlockRule['when'] {
-  return { type: 'var', varId: 'bMarche', negated: false };
+function DEFAULT_RULE(): BlockRule {
+  return { when: [{ type: 'var', varId: 'bMarche', negated: false }], then: [] };
 }
 
 function Rule({
@@ -38,12 +38,12 @@ function Rule({
 
       <Text style={styles.keyword}>SI</Text>
       <ConditionListEditor
-        conditions={[rule.when]}
+        conditions={rule.when}
         machine={machine}
         pickerTitle="Condition d'entrée"
         emptyHint="Choisis une condition."
         hideLevelThresholds={!MACHINES[machine].numericLabel}
-        onChange={(next) => onUpdate({ ...rule, when: next[0] ?? EMPTY_CONDITION() })}
+        onChange={(next) => onUpdate({ ...rule, when: next })}
       />
 
       <Text style={styles.keyword}>ALORS</Text>
@@ -120,7 +120,7 @@ export function BlocksEditor({
       <Pill
         label="+ Nouvelle règle"
         tone="accent"
-        onPress={() => set('blocks', machine, { ...program, rules: [...program.rules, { when: EMPTY_CONDITION(), then: [] }] })}
+        onPress={() => set('blocks', machine, { ...program, rules: [...program.rules, DEFAULT_RULE()] })}
       />
 
       <Card>

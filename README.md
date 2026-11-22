@@ -41,7 +41,10 @@ et affiche un compteur de **conflits**.
    **temporisations** TON (retard à l'enclenchement), TOF (retard au relâchement), TP (impulsion),
    **compteurs** CTU / CTD avec seuil et reset.
 
-Les programmes exemples (une paire par machine) sont des solutions complètes prêtes à simuler.
+Les programmes exemples (une paire par machine) sont des solutions complètes prêtes à simuler,
+et réagissent au bouton **ARRÊT** : en Grafcet, chaque étape a une branche alternative vers
+l'étape initiale (tout s'arrête, MARCHE relance) ; en Ladder cuve, l'ARRÊT coupe vanne et pompe ;
+en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui MARCHE.
 
 ## Simulation
 

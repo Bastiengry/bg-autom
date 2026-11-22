@@ -10,7 +10,17 @@ import type {
 } from '../types';
 import { emptyProgram } from '../types';
 
-const STORAGE_KEY = 'bgautom.programs.v2';
+const STORAGE_KEY = 'bgautom.programs.v3';
+
+function sanitizeBlocks(p: unknown): BlocksProgram {
+  const prog = p as BlocksProgram;
+  return {
+    rules: (prog?.rules ?? []).map((r) => ({
+      when: Array.isArray(r?.when) ? r.when : r?.when ? [r.when] : [],
+      then: Array.isArray(r?.then) ? r.then : [],
+    })),
+  };
+}
 
 export type ProgramsMap = Record<ProgramMode, Record<MachineId, AnyProgram>>;
 
@@ -40,10 +50,14 @@ export function ProgramsProvider({ children }: { children: React.ReactNode }) {
       .then((raw) => {
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<ProgramsMap>;
-          setMap((m) => ({
-            grafcet: { ...m.grafcet, ...(parsed.grafcet ?? {}) },
-            ladder: { ...m.ladder, ...(parsed.ladder ?? {}) },
-            blocks: { ...m.blocks, ...(parsed.blocks ?? {}) },
+          const blocks: Partial<Record<MachineId, BlocksProgram>> = {};
+          for (const m of ['cuve', 'feux'] as MachineId[]) {
+            if (parsed.blocks?.[m]) blocks[m] = sanitizeBlocks(parsed.blocks[m]);
+          }
+          setMap((prev) => ({
+            grafcet: { ...prev.grafcet, ...(parsed.grafcet ?? {}) },
+            ladder: { ...prev.ladder, ...(parsed.ladder ?? {}) },
+            blocks: { ...prev.blocks, ...blocks },
           }));
         }
       })

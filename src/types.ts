@@ -66,7 +66,7 @@ export interface LadderProgram {
 }
 
 export interface BlockRule {
-  when: Condition;
+  when: Condition[];
   then: string[];
 }
 

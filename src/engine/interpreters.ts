@@ -194,8 +194,9 @@ function runLadder(
   state: InterpState,
   ctx: EvalContext,
 ): EvalResult {
+  const prevScan = state.prev;
   const snapshot = varsSnapshot(vars, state.mem);
-  const st2: InterpState = { ...state, prev: snapshot };
+  const st2: InterpState = { ...state, prev: prevScan };
   advanceTimers(program, snapshot, st2, ctx);
   advanceCounters(program, snapshot, st2, ctx);
   const current = { ...snapshot };
@@ -223,13 +224,17 @@ function runLadder(
   }
   const mem: Record<string, boolean> = {};
   for (const k of Object.keys(out)) mem[k] = out[k];
-  return { outputs: out, state: { ...st2, mem } };
+  const nextPrev = { ...snapshot };
+  for (const c of program.counters) {
+    nextPrev['__ctr_' + c.id] = !!prevScan['__ctr_' + c.id];
+  }
+  return { outputs: out, state: { ...st2, prev: nextPrev, mem } };
 }
 
 function runBlocks(program: BlocksProgram, vars: Record<string, boolean>, state: InterpState, ctx: EvalContext): EvalResult {
   const out: Record<string, boolean> = {};
   for (const rule of program.rules) {
-    if (truth(rule.when, vars, state, ctx)) {
+    if (evalAll(rule.when, vars, state, ctx)) {
       for (const a of rule.then) out[a] = true;
     }
   }
