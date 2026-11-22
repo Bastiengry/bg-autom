@@ -55,6 +55,15 @@ en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui 
 - **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
 - Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée / lampes feux)
 
+### 🛡️ Incidents (pannes & attaques)
+
+Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage d'un
+capteur (BH collé à 1), actionneur bloqué (vanne neutralisée), forçage d'une sortie (feu vert
+piraté) ou feu mort. Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
+comparaison commande / retour lampe L1-L2) et **réagir en état sûr** (voyant d'alarme, tout
+rouge, arrêt process). La mission est validée en temps réel. La partie réseau (Modbus, pare-feux,
+IEC 62443) ferait l'objet d'une application séparée.
+
 Les programmes sont **sauvegardés automatiquement** (AsyncStorage) par langage et par machine
 (clé `bgautom.programs.v2`).
 

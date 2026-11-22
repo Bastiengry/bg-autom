@@ -21,6 +21,7 @@ import {
   TICK_MS,
   type MachineState,
 } from '../system/machines';
+import { INCIDENTS } from '../system/incidents';
 import { TankView } from '../components/TankView';
 import { FeuxView } from './FeuxView';
 import { Card, Chip, Pill, SectionTitle } from '../components/ui';
@@ -49,9 +50,15 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
   const interpRef = useRef<InterpState>(initInterpState());
   const pressRef = useRef<{ bMarche: number; bArret: number }>({ bMarche: 0, bArret: 0 });
   const chronoRef = useRef<Sample[]>([]);
+  const tickCountRef = useRef(0);
+  const faultStartRef = useRef<number | null>(null);
+  const seenRef = useRef<Record<string, boolean>>({});
+  const lastActualRef = useRef<Record<string, boolean>>({});
 
   const [speed, setSpeed] = useState<Speed>(1);
   const [paused, setPaused] = useState(false);
+  const [incident, setIncident] = useState<string | null>(null);
+  const [seen, setSeen] = useState<Record<string, boolean>>({});
   const [eStop, setEStop] = useState(false);
   const [showChrono, setShowChrono] = useState(false);
   const [chrono, setChrono] = useState<Sample[]>([]);
@@ -67,6 +74,11 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       vars.sMoyen = sysRef.current.level >= 50;
       vars.sHaut = sysRef.current.level >= 95;
     }
+    if (machine === 'feux') {
+      const a = lastActualRef.current;
+      vars.l1 = !!(a.o1 || a.v1 || a.r1);
+      vars.l2 = !!(a.o2 || a.v2 || a.r2);
+    }
     if (pressRef.current.bMarche > 0) vars.bMarche = true;
     if (pressRef.current.bArret > 0) vars.bArret = true;
     return vars;
@@ -75,14 +87,40 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
   const tick = useCallback(
     () => {
       if (eStop) return;
+      tickCountRef.current += 1;
       const vars = inputVars();
+      if (incident === 'fHaut') vars.sHaut = true;
       const run = runProgram(mode, program, vars, interpRef.current, {
         level: sysRef.current.kind === 'cuve' ? sysRef.current.level : 0,
       });
-      const outputs = run.outputs;
+      let outputs = run.outputs;
+      if (incident === 'fVanne') outputs = { ...outputs, vanneR: false };
+      if (incident === 'fV1') outputs = { ...outputs, v1: true };
+      if (incident === 'fR2Dead') outputs = { ...outputs, r2: false };
+      lastActualRef.current = outputs;
       interpRef.current = run.state;
       const nextSys = stepSystem(machine, sysRef.current, outputs);
       sysRef.current = nextSys;
+
+      if (incident && faultStartRef.current === null) faultStartRef.current = tickCountRef.current;
+      if (!incident) faultStartRef.current = null;
+      const sinceMs =
+        faultStartRef.current === null
+          ? Infinity
+          : (tickCountRef.current - faultStartRef.current) * TICK_MS;
+      if (incident && sinceMs >= 500 && !seenRef.current[incident]) {
+        let ok = false;
+        if (machine === 'cuve') {
+          if (incident === 'fHaut') ok = !!outputs.voyRouge && !!vars.sHaut && !vars.sMoyen;
+          else ok = !outputs.vanneR && !outputs.pompeV && !!outputs.voyRouge;
+        } else {
+          ok = !!outputs.r1 && !!outputs.r2;
+        }
+        if (ok) {
+          seenRef.current[incident] = true;
+          setSeen({ ...seenRef.current });
+        }
+      }
 
       if (pressRef.current.bMarche > 0) pressRef.current.bMarche -= 1;
       if (pressRef.current.bArret > 0) pressRef.current.bArret -= 1;
@@ -95,7 +133,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
 
       setView({ sys: nextSys, outputs, vars });
     },
-    [eStop, inputVars, machine, mode, program, showChrono],
+    [eStop, incident, inputVars, machine, mode, program, showChrono],
   );
 
   useEffect(() => {
@@ -114,6 +152,11 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
     interpRef.current = initInterpState();
     pressRef.current = { bMarche: 0, bArret: 0 };
     chronoRef.current = [];
+    lastActualRef.current = {};
+    tickCountRef.current = 0;
+    faultStartRef.current = null;
+    seenRef.current = {};
+    setSeen({});
     setChrono([]);
     setEStop(false);
     setView({ sys: sysRef.current, outputs: {}, vars: {} });
@@ -183,6 +226,34 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
           {eStop ? <Text style={styles.eStop}>ARRÊT D’URGENCE ACTIF — Reinitialise pour redémarrer</Text> : null}
           {!paused && !eStop ? <Text style={styles.hint}>Simulation en cours ({speed}×, tick {TICK_MS} ms)</Text> : null}
           {paused && !eStop ? <Text style={styles.hint}>En pause : avance cycle par cycle avec « ▶︎ 1 cycle »</Text> : null}
+        </Card>
+
+        <Card>
+          <SectionTitle>🛡️ Incidents (pannes &amp; attaques)</SectionTitle>
+          <View style={styles.row}>
+            <Chip label="Aucun" selected={incident === null} onPress={() => setIncident(null)} />
+            {INCIDENTS[machine].map((f) => (
+              <Chip key={f.id} label={f.label} selected={incident === f.id} onPress={() => setIncident(incident === f.id ? null : f.id)} />
+            ))}
+          </View>
+          {incident ? (
+            <>
+              <Text style={styles.hint}>
+                {INCIDENTS[machine].find((f) => f.id === incident)?.detail}
+              </Text>
+              <Text style={styles.missionH}>
+                {seen[incident] ? '✓ ' : '○ '}
+                {INCIDENTS[machine].find((f) => f.id === incident)?.mission}
+              </Text>
+              <Text style={styles.hint}>
+                Indice : {INCIDENTS[machine].find((f) => f.id === incident)?.hint}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.hint}>
+              Simule une panne ou un forçage malveillant, puis programme la détection et la réaction en état sûr (relais internes M, retours lampe L1/L2, capteurs, tempo TON).
+            </Text>
+          )}
         </Card>
 
         <Card>
@@ -294,6 +365,7 @@ const styles = StyleSheet.create({
   eStop: { color: C.danger, fontWeight: '800', marginTop: 8, fontSize: 13 },
   mission: { color: C.text, fontSize: 13, lineHeight: 21, fontFamily: 'monospace' },
   missionOk: { color: C.ok },
+  missionH: { color: C.warn, fontSize: 13, lineHeight: 21, fontFamily: 'monospace', fontWeight: '700' },
   ioWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   ioCell: {
     paddingHorizontal: 10,

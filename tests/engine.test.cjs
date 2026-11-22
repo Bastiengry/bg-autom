@@ -208,4 +208,47 @@ runLadderCuveStop();
 runFeuxLadderStop();
 runFeuxGrafcetStop();
 
+
+
+function runCuveIncoherenceDetect() {
+  const v = (x) => ({ type: 'var', varId: x, negated: false });
+  const notV = (x) => ({ type: 'var', varId: x, negated: true });
+  const program = { rules: [{ when: [v('sHaut'), notV('sMoyen')], then: ['voyRouge'] }] };
+  const machine = 'cuve';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  const vars = { sHaut: true, sMoyen: false, bMarche: false, sBas: false };
+  const before = runProgram('blocks', program, vars, interp, { level: 20 });
+  initSystem;
+  assert(before.outputs.voyRouge === true, 'cuve incident: BH sans BM doit allumer VOY. R');
+  const sane = { sHaut: true, sMoyen: true, bMarche: false, sBas: false };
+  const after = runProgram('blocks', program, sane, interp, { level: 95 });
+  assert(!after.outputs.voyRouge, 'cuve incident: BH avec BM = coh\u00e9rent, pas d\u2019alarme');
+  console.log('\u2713 Incident cuve : BH forc\u00e9 sans BM \u2192 incoh\u00e9rence d\u00e9tectable (VOY. R)');
+}
+
+function runFeuxFeedbackSafeMode() {
+  const v = (x) => ({ type: 'var', varId: x, negated: false });
+  const notV = (x) => ({ type: 'var', varId: x, negated: true });
+  const program = {
+    timers: [],
+    counters: [],
+    rungs: [
+      { output: 'r1', coilType: 'coil', terms: [v('l1'), notV('v1'), notV('o1')], junctions: ['AND', 'AND'] },
+      { output: 'r2', coilType: 'coil', terms: [v('l1')], junctions: [] },
+    ],
+  };
+  let interp = initInterpState();
+  const tampered = { bMarche: false, bArret: false, l1: true, l2: false, v1: false, o1: false };
+  const r = runProgram('ladder', program, tampered, interp, { level: 0 });
+  assert(r.outputs.r1 && r.outputs.r2, 'feux incident: for\u00e7age V1 d\u00e9tect\u00e9 via L1 \u2192 tout rouge');
+  const normal = { bMarche: false, bArret: false, l1: false, l2: false, v1: false, o1: false };
+  const r2 = runProgram('ladder', program, normal, interp, { level: 0 });
+  assert(!r2.outputs.r1 && !r2.outputs.r2, 'feux incident: pas de fausse alerte au repos');
+  console.log('\u2713 Incident feux : for\u00e7age de sortie d\u00e9tect\u00e9 via retour lampe \u2192 mode s\u00fbr (R1+R2)');
+}
+
+runCuveIncoherenceDetect();
+runFeuxFeedbackSafeMode();
+
 console.log('Tous les tests moteur passent.');

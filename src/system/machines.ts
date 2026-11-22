@@ -117,6 +117,8 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'l1', label: 'L1 (retour)', kind: 'input', detail: 'Retour lampes voie 1 : true si une lampe de la voie 1 est réellement allumée' },
+      { id: 'l2', label: 'L2 (retour)', kind: 'input', detail: 'Retour lampes voie 2 : true si une lampe de la voie 2 est réellement allumée' },
       { id: 'r1', label: 'R1', kind: 'output', detail: 'Feu rouge voie 1' },
       { id: 'o1', label: 'O1', kind: 'output', detail: 'Feu orange voie 1' },
       { id: 'v1', label: 'V1', kind: 'output', detail: 'Feu vert voie 1' },
