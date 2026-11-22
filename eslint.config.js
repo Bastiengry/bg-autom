@@ -1,0 +1,10 @@
+const { defineConfig, flatConfigs } = require('eslint/config');
+
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*', 'node_modules/*'],
+  },
+]);
