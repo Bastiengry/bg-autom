@@ -2,39 +2,35 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../theme';
 import { usePrograms } from '../state/programs';
-import {
-  OUTPUT_IDS,
-  VAR_LABELS,
-  type BlockRule,
-  type ProgramMode,
-  type VarId,
-} from '../types';
+import { MACHINES } from '../system/machines';
+import type { BlocksProgram, BlockRule, MachineId, ProgramMode } from '../types';
 import { exampleBlocks } from '../programs/examples';
 import { Card, Chip, Pill, Screen, SectionTitle } from '../components/ui';
-import { ConditionListEditor, inputPickerItems } from '../components/ConditionListEditor';
+import ConditionListEditor, { conditionLabel, contactItems } from '../components/ConditionListEditor';
+
+function EMPTY_CONDITION(): BlockRule['when'] {
+  return { type: 'var', varId: 'bMarche', negated: false };
+}
 
 function Rule({
   rule,
   index,
+  machine,
   onUpdate,
   onRemove,
 }: {
   rule: BlockRule;
   index: number;
+  machine: MachineId;
   onUpdate: (r: BlockRule) => void;
   onRemove: () => void;
 }) {
-  const toggleAction = (a: VarId) => {
-    const then = rule.then.includes(a)
-      ? rule.then.filter((x) => x !== a)
-      : [...rule.then, a];
-    onUpdate({ ...rule, then });
-  };
+  const actionVars = MACHINES[machine].vars.filter((v) => v.kind !== 'input');
 
   return (
     <Card>
       <View style={styles.ruleHeader}>
-        <SectionTitle>Si / Alors {index + 1}</SectionTitle>
+        <SectionTitle>{`Règle ${index + 1}`}</SectionTitle>
         <Pressable onPress={onRemove} hitSlop={8}>
           <Text style={styles.delete}>Supprimer</Text>
         </Pressable>
@@ -43,85 +39,118 @@ function Rule({
       <Text style={styles.keyword}>SI</Text>
       <ConditionListEditor
         conditions={[rule.when]}
-        onChange={(next) => onUpdate({ ...rule, when: next[0] ?? { varId: 'sHaut', negated: false } })}
-        items={inputPickerItems()}
-        pickerTitle="Condition du Si"
-        emptyHint="Choisissez une condition."
+        machine={machine}
+        pickerTitle="Condition d'entrée"
+        emptyHint="Choisis une condition."
+        hideLevelThresholds={!MACHINES[machine].numericLabel}
+        onChange={(next) => onUpdate({ ...rule, when: next[0] ?? EMPTY_CONDITION() })}
       />
 
       <Text style={styles.keyword}>ALORS</Text>
-      <View style={styles.chips}>
-        {OUTPUT_IDS.map((a) => (
+      <View style={styles.actionsRow}>
+        {actionVars.map((av) => (
           <Chip
-            key={a}
-            label={VAR_LABELS[a]}
-            selected={rule.then.includes(a)}
-            onPress={() => toggleAction(a)}
+            key={av.id}
+            label={av.label}
+            selected={rule.then.includes(av.id)}
+            onPress={() =>
+              onUpdate({
+                ...rule,
+                then: rule.then.includes(av.id)
+                  ? rule.then.filter((x) => x !== av.id)
+                  : [...rule.then, av.id],
+              })
+            }
           />
         ))}
       </View>
-      <Text style={styles.note}>
-        Les règles sont évaluées de haut en bas : une règle plus bas peut annuler une règle plus haut.
-      </Text>
+      {rule.then.length > 0 ? (
+        <View style={styles.previewRow}>
+          {rule.then.map((a) => (
+            <Text key={a} style={styles.previewItem}>
+              ({a} ← 1)
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </Card>
   );
 }
 
-export function BlocksEditor({ onSimulate }: { onSimulate: (mode: ProgramMode) => void }) {
-  const { blocks, setBlocks, clear } = usePrograms();
+export function BlocksEditor({
+  machine,
+  onSimulate,
+}: {
+  machine: MachineId;
+  onSimulate: (mode: ProgramMode, machine: MachineId) => void;
+}) {
+  const { get, set, clear } = usePrograms();
+  const program = get('blocks', machine) as BlocksProgram;
+
+  const update = (i: number, rule: BlockRule) => {
+    const rules = [...program.rules];
+    rules[i] = rule;
+    set('blocks', machine, { ...program, rules });
+  };
 
   return (
     <Screen
-      title="Éditeur Blocs simples"
-      subtitle="Des règles SI condition ALORS sorties, réévaluées à chaque cycle. Mode le plus simple : il n'y a aucune mémoire — pour un cycle complet (remplir puis vider), utilisez plutôt Grafcet ou Ladder."
+      title={`Blocs — ${MACHINES[machine].name}`}
+      subtitle="Règles SI / ALORS évaluées à chaque cycle. Sans mémoire : la sortie suit la condition tant qu'elle est vraie."
     >
-      {blocks.rules.length === 0 ? (
+      {program.rules.length === 0 ? (
         <Card>
-          <Text style={styles.empty}>
-            Ajoutez une première règle, ou chargez l’exemple « remplir puis s’arrêter ».
+          <Text style={styles.hint}>
+            Aucune règle. Ajoute ta première règle SI / ALORS pour commander la machine.
           </Text>
         </Card>
       ) : null}
 
-      {blocks.rules.map((r, i) => (
+      {program.rules.map((r, i) => (
         <Rule
           key={i}
           rule={r}
           index={i}
-          onUpdate={(nr) => {
-            const rules = [...blocks.rules];
-            rules[i] = nr;
-            setBlocks({ rules });
-          }}
-          onRemove={() => setBlocks({ rules: blocks.rules.filter((_, j) => j !== i) })}
+          machine={machine}
+          onUpdate={(nr) => update(i, nr)}
+          onRemove={() => set('blocks', machine, { ...program, rules: program.rules.filter((_, j) => j !== i) })}
         />
       ))}
 
       <Pill
         label="+ Nouvelle règle"
         tone="accent"
-        onPress={() =>
-          setBlocks({
-            rules: [...blocks.rules, { when: { varId: 'sHaut', negated: false }, then: [] }],
-          })
-        }
+        onPress={() => set('blocks', machine, { ...program, rules: [...program.rules, { when: EMPTY_CONDITION(), then: [] }] })}
       />
 
-      <View style={styles.rowBtns}>
-        <Pill label="Charger un exemple (remplir puis stop)" tone="accent" onPress={() => setBlocks(exampleBlocks())} />
-        <Pill label="Tout effacer" onPress={() => clear('blocks')} />
+      <Card>
+        <SectionTitle>Aperçu des contacts</SectionTitle>
+        <Text style={styles.hint}>
+          {contactItems(machine)
+            .map((v) => v.label)
+            .join('  •  ')}
+        </Text>
+        <Text style={styles.hint}>
+          Exemple : {conditionLabel({ type: 'var', varId: 'bMarche', negated: false }, machine)} → allume les sorties choisies.
+        </Text>
+      </Card>
+
+      <View style={styles.footerRow}>
+        <Pill label="Exemple" onPress={() => set('blocks', machine, exampleBlocks(machine))} />
+        <Pill label="Tout effacer" tone="danger" onPress={() => clear('blocks', machine)} />
+        <Pill label="▶︎ Simuler" tone="ok" onPress={() => onSimulate('blocks', machine)} />
       </View>
-      <Pill label="▶ Simuler ce programme" tone="ok" onPress={() => onSimulate('blocks')} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   ruleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  keyword: { color: C.warn, fontWeight: '800', fontSize: 13, fontFamily: 'monospace', marginTop: 4 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  note: { color: C.dim, fontSize: 12, lineHeight: 17 },
   delete: { color: C.danger, fontSize: 13, fontWeight: '700' },
-  empty: { color: C.dim, fontSize: 13, fontStyle: 'italic' },
-  rowBtns: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  keyword: { color: C.warn, fontSize: 12, fontWeight: '800', fontFamily: 'monospace', marginTop: 6 },
+  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  previewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  previewItem: { color: C.text, fontSize: 12, fontFamily: 'monospace' },
+  hint: { color: C.dim, fontSize: 13, lineHeight: 19 },
+  footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
 });

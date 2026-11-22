@@ -1,58 +1,35 @@
-export type VarId =
-  | 'bMarche'
-  | 'bArret'
-  | 'sBas'
-  | 'sMoyen'
-  | 'sHaut'
-  | 'vanneR'
-  | 'pompeV'
-  | 'voyVert'
-  | 'voyRouge';
-
-export type Vars = Record<VarId, boolean>;
-
-export interface VarDef {
-  id: VarId;
-  label: string;
-  kind: 'input' | 'output';
-  detail: string;
-}
-
-export const VAR_DEFS: VarDef[] = [
-  { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
-  { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
-  { id: 'sBas', label: 'BS', kind: 'input', detail: 'Capteur niveau bas (≤ 5 %)' },
-  { id: 'sMoyen', label: 'BM', kind: 'input', detail: 'Capteur niveau moyen (≥ 50 %)' },
-  { id: 'sHaut', label: 'BH', kind: 'input', detail: 'Capteur niveau haut (≥ 95 %)' },
-  { id: 'vanneR', label: 'VANNE R', kind: 'output', detail: 'Vanne de remplissage' },
-  { id: 'pompeV', label: 'POMPE V', kind: 'output', detail: 'Pompe de vidange' },
-  { id: 'voyVert', label: 'VOY. V', kind: 'output', detail: 'Voyant vert' },
-  { id: 'voyRouge', label: 'VOY. R', kind: 'output', detail: 'Voyant rouge' },
-];
-
-export const VAR_LABELS: Record<VarId, string> = Object.fromEntries(
-  VAR_DEFS.map((v) => [v.id, v.label]),
-) as Record<VarId, string>;
-
-export const INPUT_IDS = VAR_DEFS.filter((v) => v.kind === 'input').map((v) => v.id);
-export const OUTPUT_IDS = VAR_DEFS.filter((v) => v.kind === 'output').map((v) => v.id);
-
-export interface Condition {
-  varId: VarId;
-  negated: boolean;
-}
-
+export type MachineId = 'cuve' | 'feux';
 export type ProgramMode = 'grafcet' | 'ladder' | 'blocks';
 
-export const MODE_LABELS: Record<ProgramMode, string> = {
-  grafcet: 'Grafcet',
-  ladder: 'Ladder (LD)',
-  blocks: 'Blocs simples',
-};
+export type Condition =
+  | { type: 'var'; varId: string; negated: boolean }
+  | { type: 'edge'; varId: string; dir: 'rising' | 'falling' }
+  | { type: 'level'; op: '>=' | '<='; value: number }
+  | { type: 'timerContact'; timerId: string }
+  | { type: 'counterContact'; counterId: string };
+
+export type VarKind = 'input' | 'output' | 'internal';
+
+export interface VarDef {
+  id: string;
+  label: string;
+  kind: VarKind;
+  detail: string;
+  color?: string;
+}
+
+export interface GrafcetAction {
+  varId: string;
+  mode: 'level' | 'set' | 'reset';
+}
 
 export interface GrafcetNode {
-  actions: VarId[];
+  actions: GrafcetAction[];
   transition: Condition[];
+  afterSeconds: number | null;
+  alt: { condition: Condition[]; goto: number }[];
+  forks: number[];
+  waitsFor: number[];
 }
 
 export interface GrafcetProgram {
@@ -60,19 +37,37 @@ export interface GrafcetProgram {
   loopTo: number;
 }
 
+export interface LadderTimer {
+  id: string;
+  type: 'TON' | 'TOF' | 'TP';
+  presetMs: number;
+  input: Condition[];
+}
+
+export interface LadderCounter {
+  id: string;
+  type: 'CTU' | 'CTD';
+  preset: number;
+  trigger: Condition[];
+  resetCondition: Condition[];
+}
+
 export interface LadderRung {
-  output: VarId;
+  output: string;
+  coilType: 'coil' | 'set' | 'reset';
   terms: Condition[];
   junctions: ('AND' | 'OR')[];
 }
 
 export interface LadderProgram {
   rungs: LadderRung[];
+  timers: LadderTimer[];
+  counters: LadderCounter[];
 }
 
 export interface BlockRule {
   when: Condition;
-  then: VarId[];
+  then: string[];
 }
 
 export interface BlocksProgram {
@@ -81,14 +76,37 @@ export interface BlocksProgram {
 
 export type AnyProgram = GrafcetProgram | LadderProgram | BlocksProgram;
 
+export const MODE_LABELS: Record<ProgramMode, string> = {
+  grafcet: 'Grafcet',
+  ladder: 'Ladder (LD)',
+  blocks: 'Blocs simples',
+};
+
+export interface EmptyNodeDefaults {
+  emptyGrafcet(): GrafcetProgram;
+  emptyLadder(): LadderProgram;
+  emptyBlocks(): BlocksProgram;
+}
+
 export function emptyGrafcet(): GrafcetProgram {
-  return { nodes: [{ actions: [], transition: [] }], loopTo: 0 };
+  return {
+    nodes: [
+      { actions: [], transition: [], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    ],
+    loopTo: 0,
+  };
 }
 
 export function emptyLadder(): LadderProgram {
-  return { rungs: [] };
+  return { rungs: [], timers: [], counters: [] };
 }
 
 export function emptyBlocks(): BlocksProgram {
   return { rules: [] };
+}
+
+export function emptyProgram(mode: ProgramMode): AnyProgram {
+  if (mode === 'grafcet') return emptyGrafcet();
+  if (mode === 'ladder') return emptyLadder();
+  return emptyBlocks();
 }

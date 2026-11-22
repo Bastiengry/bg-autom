@@ -21,7 +21,7 @@ export function TankView({
   vars,
 }: {
   level: number;
-  vars: { sBas: boolean; sMoyen: boolean; sHaut: boolean; vanneR: boolean; pompeV: boolean; voyVert: boolean; voyRouge: boolean };
+  vars: Record<string, boolean>;
 }) {
   return (
     <View style={styles.row}>

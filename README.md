@@ -1,9 +1,11 @@
 # BG Autom — Labo d'automatisme (React Native / Expo)
 
 Application mobile d'apprentissage de l'automatisme : l'utilisateur **programme l'automate**
-et la simulation de **remplissage de cuve** exécute son programme en temps réel.
+et la machine (remplissage de cuve, feux de carrefour) exécute son programme en temps réel.
 
-## Le système : remplissage de cuve
+## Les machines
+
+### 💧 Remplissage de cuve
 
 | Élément | Sens | Détail |
 |---|---|---|
@@ -13,46 +15,81 @@ et la simulation de **remplissage de cuve** exécute son programme en temps rée
 | `BM` | Entrée | Capteur niveau moyen (≥ 50 %) |
 | `BH` | Entrée | Capteur niveau haut (≥ 95 %) |
 | `MARCHE` / `ARRÊT` | Entrées | Boutons poussoirs (impulsion automatique ~600 ms) |
+| `M1`–`M3` | Relais internes | Mémoires de l'automate |
+| `VOY. V` / `VOY. R` | Sorties | Voyants |
 
 **Mission** : à chaque appui sur MARCHE, remplir jusqu'à BH, vider jusqu'à BS, puis recommencer
 (cycles complets comptés à l'écran). Les boutons étant poussoirs, la demande doit être
 **mémorisée** dans le programme — c'est le cœur pédagogique.
 
+### 🚦 Feux de carrefour
+
+Deux voies croisées. Voie 1 : `R1 / O1 / V1`, voie 2 : `R2 / O2 / V2`, plus `MARCHE` / `ARRÊT`
+et les relais internes `M1`–`M4` (une phase chacun).
+
+**Mission** : enchaîner vert → orange → rouge sur chaque voie en sécurité : aucun feu vert
+(ou orange) sur les deux voies simultanément. La simulation compte les **cycles complets**
+et affiche un compteur de **conflits**.
+
 ## Trois langages de programmation
 
 1. **Blocs simples** (débutant) : règles `SI condition ALORS sorties`, réévaluées à chaque cycle, sans mémoire.
-2. **Grafcet** (EN 60848) : étapes (actions) chaînées par des transitions (conditions), retour de séquence configurable.
-3. **Ladder (LD)** : contacts (÷/ET/OU) et bobines, avec auto-maintien via un contact sur lui-même.
+2. **Grafcet** (EN 60848) : étapes (actions niveau / Set / Reset), transitions multi-conditions, tempo d'étape,
+   **divergence OU / sauts** (avec condition de branchement), **divergence ET** (fourches `forks` / `waitsFor`),
+   retour de séquence configurable (`loopTo`).
+3. **Ladder (LD)** : contacts (÷/NON), junctions ET/OU, bobines `( ) / (S) / (R)`,
+   **temporisations** TON (retard à l'enclenchement), TOF (retard au relâchement), TP (impulsion),
+   **compteurs** CTU / CTD avec seuil et reset.
 
-Chaque éditeur dispose d'un **exemple de départ** prêt à simuler (cycle complet pour Grafcet/Ladder).
+Les programmes exemples (une paire par machine) sont des solutions complètes prêtes à simuler.
+
+## Simulation
+
+- Horloge automate : tick de 100 ms, vitesse **0,5× / 1× / 2× / 5×**
+- **Pas-à-pas** : pause puis « ▶︎ 1 cycle » pour avancer d'un seul cycle automate
+- **Arrêt d'urgence** : coupe immédiatement toutes les sorties
+- **Missions** : objectifs de validation (cycles complets, feux sans conflit…) cochés en temps réel
+- **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
+- Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée / lampes feux)
+
+Les programmes sont **sauvegardés automatiquement** (AsyncStorage) par langage et par machine
+(clé `bgautom.programs.v2`).
 
 ## Architecture
 
 ```
 src/
-  app/                    Routes Expo Router (accueil, éditeurs, simulation)
-  components/             UI partagée : TankView, éditeur de conditions, widgets
-  engine/interpreters.ts  Exécution d'un programme pendant un cycle automate
-  state/programs.tsx      État partagé des 3 programmes (contexte React)
-  system/model.ts         Physique de la cuve (niveau, capteurs, cycles) à 100 ms
-  programs/examples.ts    Programmes d'exemple (solutions)
-  types.ts                Vocabulaire E/S et types de programmes
+  app/            # Expo Router : accueil, /editor/[mode]?machine=, /simulation/[mode]?machine=
+  components/     # ui, ConditionListEditor, TankView, FeuxView
+  engine/         # interpreters.ts : moteurs Grafcet / Ladder / Blocs
+  programs/       # examples.ts : programmes exemples par machine
+  screens/        # GrafcetEditor, LadderEditor, BlocksEditor, SimulationScreen
+  state/          # programs.tsx : persistance AsyncStorage (contexte React)
+  system/         # machines.ts : physique cuve + feux, registres de variables, objectifs
+  types.ts        # types partagés (Condition union, programmes, machines)
+tests/            # tests moteur (npm test)
 ```
 
-Le simulateur fait tourner l'automate à 10 Hz : chaque cycle lit les entrées, évalue le
-programme (Grafcet / Ladder / Blocs), applique les sorties au procédé.
-
-## Commandes
+## Développement
 
 ```bash
 npm install
-npx expo start          # ouvrir avec Expo Go
-npm run test:types      # tsc --noEmit
-npx expo lint
+npm start          # Expo dev server
+npx tsc --noEmit   # typecheck
+npx expo lint      # lint
+npm test           # tests moteur (cuve/feux × Grafcet/Ladder/Blocs)
 ```
 
-## Pistes d'évolution
+### APK Android
 
-- Sauvegarde des programmes (AsyncStorage), profil multi-missions
-- Grafcet avec divergences en OU / ET (séquences alternatives et parallèles)
-- Timers (TON/TOF), compteurs, nouvelles machines (feux de carrefour, perceuse…)
+- Build local : `npx expo prebuild --platform android && cd android && ./gradlew assembleRelease`
+- Build cloud : `eas build --profile preview` (profil `preview` = APK ; `production` = AAB)
+
+L'APK signé le plus récent est committé dans `apk/` (voir les [Releases GitHub](https://github.com/Bastiengry/bg-autom/releases)).
+
+## Limites connues
+
+- Le mode Blocs est sans mémoire (choix pédagogique documenté dans l'UI).
+- Pas de build iOS dans ce dépôt ; interface en français uniquement.
+EOF
+npx tsc --noEmit 2>&1 | head -5; npx expo lint 2>&1 | tail -4; npm test 2>&1 | grep -E "✓|passent"
