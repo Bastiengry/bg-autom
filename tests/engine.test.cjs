@@ -8,7 +8,7 @@ const tick = (machine, vars, sys, interp, mode, program, actual = {}) => {
   const inputs = { ...machineInputs(machine, sys, actual), ...vars };
   const ctx = { level: numericOf(machine, sys) };
   const res = runProgram(mode, program, inputs, interp, ctx);
-  return { sys: stepSystem(machine, sys, res.outputs), interp: res.state, outputs: res.outputs };
+  return { sys: stepSystem(machine, sys, res.outputs, inputs), interp: res.state, outputs: res.outputs };
 };
 
 function pulseEnter(vars, id) { vars[id] = true; }
@@ -412,4 +412,97 @@ function runPniveauBarriereBloqueeAlarme() {
 runConvoyeurIncoherenceMoteur();
 runPniveauBarriereBloqueeAlarme();
 
+
+function runCuveAruLadder() {
+  const program = exampleLadder('cuve');
+  const machine = 'cuve';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let reacqAt = -1;
+  let marAt = -1;
+  let windowSeen = false;
+  let lockedSeen = false;
+  for (let i = 0; i < 200; i++) {
+    const vars = { bMarche: i < 4 || i >= marAt && i < marAt + 4, bArret: false, bAru: !(i >= 60 && i < 80) };
+    if (i === 80) reacqAt = i;
+    if (reacqAt >= 0 && marAt < 0 && i === reacqAt + 40) marAt = i;
+    const r = runProgram('ladder', program, vars, interp, { level: sys.level });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs, vars);
+    if (i > 61 && i < 80) {
+      assert(!r.outputs.vanneR && !r.outputs.pompeV, `ladder cuve AU: sorties coupees pendant AU (cycle ${i}), out ${JSON.stringify(r.outputs)}`);
+      windowSeen = true;
+    }
+    if (i >= 82 && i < reacqAt + 40 - 1) {
+      assert(!r.outputs.vanneR, `ladder cuve AU: vanne doit rester coupee apres reacquit sans MARCHE (cycle ${i})`);
+    }
+    if (i > marAt + 3 && marAt > 0 && r.outputs.vanneR) lockedSeen = true;
+  }
+  assert(windowSeen, 'ladder cuve AU: fenêtre AU non observeée');
+  assert(sys.kind === 'cuve' && sys.aruStopped, 'ladder cuve AU: sys.aruStopped attendu');
+  assert(sys.restartSeen, 'ladder cuve AU: sys.restartSeen attendu après acquit MARCHE');
+  assert(lockedSeen, 'ladder cuve AU: redémarrage attendu après impulsion MARCHE');
+  console.log(`\u2713 Ladder cuve AU NF : coupure au milieu d\u2019un cycle, verrouillage jusqu\u2019à l\u2019acquit MARCHE (niveau ${Math.round(sys.level)} %)`);
+}
+
+function runCuveAruGrafcet() {
+  const program = exampleGrafcet('cuve');
+  const machine = 'cuve';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let runningSeen = false;
+  for (let i = 0; i < 60; i++) {
+    const vars = { bMarche: i < 6, bArret: false, bAru: !(i >= 20 && i < 26) };
+    const r = runProgram('grafcet', program, vars, interp, { level: sys.level });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs, vars);
+    if (i === 19) {
+      assert(interp.active.length === 1 && interp.active[0] !== 0,
+        `grafcet cuve AU: une étape active attendue avant l\u2019AU, actif ${JSON.stringify(interp.active)}`);
+      runningSeen = true;
+    }
+    if (i === 21) {
+      assert(interp.active.length === 1 && interp.active[0] === 0,
+        `grafcet cuve AU: retour à l\u2019étape initiale attendu, actif ${JSON.stringify(interp.active)}`);
+      assert(!r.outputs.vanneR && !r.outputs.pompeV, 'grafcet cuve AU: sorties coupées à l\u2019étape initiale');
+    }
+  }
+  assert(runningSeen, 'grafcet cuve AU: le Grafcet tournait avant l\u2019AU');
+  assert(sys.kind === 'cuve' && sys.aruSeen, 'grafcet cuve AU: sys.aruSeen attendu');
+  console.log('\u2713 Grafcet cuve AU NF : branche alt \u2192 retour à l\u2019étape 0, sorties coupées, MARCHE relance');
+}
+
+function runCuveBlocksAru() {
+  const program = exampleBlocks('cuve');
+  const machine = 'cuve';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let runningSeen = false;
+  for (let i = 0; i < 60; i++) {
+    const vars = { bMarche: false, bArret: false, bAru: !(i >= 30 && i < 45) };
+    const r = runProgram('blocks', program, vars, interp, { level: sys.level });
+    interp = r.state;
+    sys = stepSystem(machine, sys, r.outputs, vars);
+    if (i === 5) {
+      assert(r.outputs.vanneR, `blocks cuve AU: vanne attendue avant AU, out ${JSON.stringify(r.outputs)}`);
+      runningSeen = true;
+    }
+    if (i > 31 && i < 38) {
+      assert(!r.outputs.vanneR, `blocks cuve AU: vanne doit couper pendant AU (cycle ${i})`);
+      assert(r.outputs.voyRouge, `blocks cuve AU: VOY. R attendu pendant AU (cycle ${i})`);
+    }
+    if (i > 45 && i < 51) {
+      assert(r.outputs.vanneR && !r.outputs.voyRouge, `blocks cuve AU: vanne remise dès bAru = true, out ${JSON.stringify(r.outputs)}`);
+    }
+  }
+  assert(runningSeen, 'blocks cuve AU: le programme tournait avant l\u2019AU');
+  assert(sys.kind === 'cuve' && sys.aruStopped, 'blocks cuve AU: sys.aruStopped attendu');
+  console.log('\u2713 Blocs cuve AU NF : bAru = false coupe VANNE R et allume VOY. R, remise en circuit sans mémoire');
+}
+
+runCuveAruLadder();
+runCuveAruGrafcet();
+runCuveBlocksAru();
+
 console.log('Tous les tests moteur passent.');
+

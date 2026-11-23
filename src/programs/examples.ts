@@ -14,6 +14,10 @@ const stopBranch = (): { condition: Condition[]; goto: number } => ({
   condition: [v('bArret')],
   goto: 0,
 });
+const aruBranch = (): { condition: Condition[]; goto: number } => ({
+  condition: [notV('bAru')],
+  goto: 0,
+});
 
 function cuveGrafcet(): GrafcetProgram {
   const p = emptyGrafcet();
@@ -26,7 +30,7 @@ function cuveGrafcet(): GrafcetProgram {
       ],
       transition: [v('sHaut')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -37,7 +41,7 @@ function cuveGrafcet(): GrafcetProgram {
       ],
       transition: [v('sBas')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -199,17 +203,17 @@ function cuveLadder(): LadderProgram {
       {
         output: 'vanneR',
         coilType: 'coil',
-        terms: [v('bMarche'), v('vanneR'), notV('sHaut'), notV('bArret')],
-        junctions: ['OR', 'AND', 'AND'],
+        terms: [v('bMarche'), v('vanneR'), v('bAru'), notV('sHaut'), notV('bArret')],
+        junctions: ['OR', 'AND', 'AND', 'AND'],
       },
       {
         output: 'pompeV',
         coilType: 'coil',
-        terms: [v('sHaut'), v('pompeV'), notV('sBas'), notV('bArret')],
-        junctions: ['OR', 'AND', 'AND'],
+        terms: [v('sHaut'), v('pompeV'), v('bAru'), notV('sBas'), notV('bArret')],
+        junctions: ['OR', 'AND', 'AND', 'AND'],
       },
       { output: 'voyVert', coilType: 'coil', terms: [v('vanneR')], junctions: [] },
-      { output: 'voyRouge', coilType: 'coil', terms: [tq('t1')], junctions: [] },
+      { output: 'voyRouge', coilType: 'coil', terms: [tq('t1'), notV('bAru')], junctions: ['OR'] },
     ],
   };
 }
@@ -391,8 +395,9 @@ export function exampleLadder(machine: MachineId): LadderProgram {
 function cuveBlocks(): BlocksProgram {
   const p = emptyBlocks();
   p.rules = [
-    { when: [notV('sHaut'), notV('bArret')], then: ['vanneR'] },
+    { when: [notV('sHaut'), notV('bArret'), v('bAru')], then: ['vanneR'] },
     { when: [v('sHaut')], then: ['voyVert'] },
+    { when: [notV('bAru')], then: ['voyRouge'] },
     { when: [v('bArret')], then: ['voyRouge'] },
   ];
   return p;

@@ -18,6 +18,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
       mission: 'Rends l’incohérence visible : VOY. R allumé tant que BH est actif sans BM.',
     },
     {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Arrêt sûr immédiat : VANNE R et POMPE V coupées, VOY. R allumé.',
+    },
+    {
       id: 'fVanne',
       label: 'Vanne R bloquée',
       detail: 'La vanne R reste fermée quoi que commande l’automate (actionneur neutralisé).',

@@ -84,6 +84,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
   const faultStartRef = useRef<number | null>(null);
   const seenRef = useRef<Record<string, boolean>>({});
   const lastActualRef = useRef<Record<string, boolean>>({});
+  const aruLatchedRef = useRef(false);
 
   const [speed, setSpeed] = useState<Speed>(1);
   const [paused, setPaused] = useState(false);
@@ -100,10 +101,11 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
     const vars: Record<string, boolean> = {};
     for (const v of def.vars) if (v.kind === 'input') vars[v.id] = false;
     Object.assign(vars, machineInputs(machine, sysRef.current, lastActualRef.current));
+    if (machine === 'cuve') vars.bAru = incident === 'fCable' ? false : !aruLatchedRef.current;
     if (pressRef.current.bMarche > 0) vars.bMarche = true;
     if (pressRef.current.bArret > 0) vars.bArret = true;
     return vars;
-  }, [def.vars, machine]);
+  }, [def.vars, machine, incident]);
 
   const tick = useCallback(
     () => {
@@ -112,6 +114,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       const vars = inputVars();
       if (incident === 'fHaut') vars.sHaut = true;
       if (incident === 'fCapteur' && machine === 'robot') vars.pDroite = true;
+      if (incident === 'fCable' && machine === 'cuve') vars.bAru = false;
       if (incident === 'fCapteur' && machine === 'pniveau') vars.dEntree = true;
       const run = runProgram(mode, program, vars, interpRef.current, {
         level: numericOf(machine, sysRef.current),
@@ -126,7 +129,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       if (incident === 'fBarriere') outputs = { ...outputs, barriere: false };
       lastActualRef.current = outputs;
       interpRef.current = run.state;
-      const nextSys = stepSystem(machine, sysRef.current, outputs);
+      const nextSys = stepSystem(machine, sysRef.current, outputs, vars);
       sysRef.current = nextSys;
 
       if (incident && faultStartRef.current === null) faultStartRef.current = tickCountRef.current;
@@ -172,6 +175,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
     sysRef.current = initSystem(machine);
     interpRef.current = initInterpState();
     pressRef.current = { bMarche: 0, bArret: 0 };
+    aruLatchedRef.current = false;
     chronoRef.current = [];
     lastActualRef.current = {};
     tickCountRef.current = 0;
@@ -234,6 +238,27 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
               <Text style={styles.btnText}>ARRÊT</Text>
             </Pressable>
           </View>
+          {machine === 'cuve' ? (
+            <>
+              <View style={styles.row}>
+                <Pressable
+                  style={[styles.btn, styles.btnDanger]}
+                  onPress={() => { aruLatchedRef.current = true; if (paused && !eStop) tick(); }}
+                >
+                  <Text style={styles.btnText}>🛑 AU (NF)</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.btn, styles.btnOk]}
+                  onPress={() => { aruLatchedRef.current = false; if (paused && !eStop) tick(); }}
+                >
+                  <Text style={styles.btnText}>Réarmer AU</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.hint}>
+                AU à contact NF : bAru = true circuit sain, false appui AU ou câble coupé.
+              </Text>
+            </>
+          ) : null}
           <Text style={styles.hint}>
             Impulsion de {PRESS_TICKS * TICK_MS} ms : mémorise la demande dans ton programme.
           </Text>

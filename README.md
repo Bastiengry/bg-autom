@@ -76,11 +76,27 @@ et réagissent au bouton **ARRÊT** : en Grafcet, chaque étape a une branche al
 l'étape initiale (tout s'arrête, MARCHE relance) ; en Ladder cuve, l'ARRÊT coupe vanne et pompe ;
 en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui MARCHE.
 
+## Exercice : arrêt d'urgence à contact NF (cuve)
+
+L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fermé (NF)** :
+`bAru = true` circuit sain, `bAru = false` bouton AU enfoncé **ou** câble coupé. Logique inversée
+à manipuler directivement dans les trois langages :
+
+1. **Détecter l'ouverture** : tout programme doit couper VANNE R et POMPE V dès `bAru = false`,
+   même au milieu d'un cycle. En Grafcet, branche alternative `NON bAru` vers l'étape initiale.
+2. **Couper en sécurité** : en Ladder, contact `bAru` (positif) en série dans chaque rung + bobine
+   VOY. R sur `NON bAru`. Un incident dédié (coupure de câble AU) simule l'appui **sans** action
+   sur le bouton : un câble NF coupé se comporte exactement comme un appui, c'est toute la
+   robustesse de cette logique.
+3. **Verrouillage** : après un AU, il ne faut pas repartir tout seul au seul retour de `bAru`.
+   Les exemples exigent une nouvelle impulsion MARCHE (l'interface simule l'acquit) ; les missions
+   associées valident coupure et redémarrage verrouillé.
+
 ## Simulation
 
 - Horloge automate : tick de 100 ms, vitesse **0,5× / 1× / 2× / 5×**
 - **Pas-à-pas** : pause puis « ▶︎ 1 cycle » pour avancer d'un seul cycle automate
-- **Arrêt d'urgence** : coupe immédiatement toutes les sorties
+- **Arrêt d'urgence** : coupe immédiatement toutes les sorties ; cuve : AU à contact NF (`bAru`) avec boutons « AU » et « Réarmer AU » (verrouillage jusqu'à l'acquit MARCHE)
 - **Missions** : objectifs de validation (cycles complets, feux sans conflit…) cochés en temps réel
 - **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
 - Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée, lampes feux, tapis + colis, chariot de peinture, barrière de passage à niveau)
@@ -90,14 +106,14 @@ en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui 
 Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage d'un
 Forçage de capteur (BH collé à 1, capteur P-D collé, capteur D-1 brouillé), actionneurs bloqués
 (vanne neutralisée, moteur tapis bloqué, poussoir forcé sorti, bombe forcée ouverte, barrière bloquée
-haute), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
+haute), coupure du câble de l'AU à contact NF (indistinguable d'un appui), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
 les missions incidents sont pensées pour Grafcet/Ladder (tempo TON, relais M mémoire). Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
 comparaison commande / retour lampe L1-L2) et **réagir en état sûr** (voyant d'alarme, tout
 rouge, arrêt process). La mission est validée en temps réel. La partie réseau (Modbus, pare-feux,
 IEC 62443) ferait l'objet d'une application séparée.
 
 Les programmes sont **sauvegardés automatiquement** (AsyncStorage) par langage et par machine
-(clé `bgautom.programs.v2`).
+(clé `bgautom.programs.v3`).
 
 ## Architecture
 

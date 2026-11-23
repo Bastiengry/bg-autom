@@ -7,6 +7,10 @@ export interface CuveState {
   level: number;
   phase: 'idle' | 'top' | 'draining';
   cycles: number;
+  aruSeen: boolean;
+  aruStopped: boolean;
+  restartSeen: boolean;
+  wasRunning: boolean;
 }
 
 export interface FeuxState {
@@ -94,7 +98,7 @@ export const PN_OUT = 75;
 export const PN_SPAWN_MS = 12000;
 export const BAR_RATE = 10;
 
-function cuveStep(s: CuveState, o: Record<string, boolean>): CuveState {
+function cuveStep(s: CuveState, o: Record<string, boolean>, inputs: Record<string, boolean>): CuveState {
   let level = s.level + (o.vanneR ? C_RATE : 0) - (o.pompeV ? C_RATE : 0);
   level = Math.max(0, Math.min(100, level));
   let phase = s.phase;
@@ -104,7 +108,13 @@ function cuveStep(s: CuveState, o: Record<string, boolean>): CuveState {
     cycles += 1;
     phase = 'idle';
   }
-  return { kind: 'cuve', level, phase, cycles };
+  const aruOpen = inputs.bAru === false;
+  const aruSeen = s.aruSeen || aruOpen;
+  const aruStopped =
+    s.aruStopped || (aruOpen && s.wasRunning && !o.vanneR && !o.pompeV);
+  const restartSeen =
+    s.restartSeen || (s.aruStopped && !aruOpen && !!inputs.bMarche);
+  return { kind: 'cuve', level, phase, cycles, aruSeen, aruStopped, restartSeen, wasRunning: !!(o.vanneR || o.pompeV) };
 }
 
 function feuxRoad(o: Record<string, boolean>, n: number): 'R' | 'V' | 'O' | null {
@@ -227,10 +237,11 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     name: 'Remplissage de cuve',
     icon: '\u{1F4A7}',
     intro:
-      'La cuve se remplit par la VANNE R et se vide par la POMPE V. Capteurs : BS (≤5 %), BM (≥50 %), BH (≥95 %). Boutons poussoirs MARCHE / ARRÊT à impulsion : mémorise la demande dans ton programme !',
+      'La cuve se remplit par la VANNE R et se vide par la POMPE V. Capteurs : BS (≤5 %), BM (≥50 %), BH (≥95 %). Boutons poussoirs MARCHE / ARRÊT à impulsion : mémorise la demande. Attention au AU depuis v0.3 : c’est un arrêt d’urgence à contact NORMALEMENT FERMÉ — sain = true, appui (ou câble coupé) = false. La marche n’est possible que si AU = true !',
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'sBas', label: 'BS', kind: 'input', detail: 'Capteur niveau bas (≤ 5 %)' },
       { id: 'sMoyen', label: 'BM', kind: 'input', detail: 'Capteur niveau moyen (≥ 50 %)' },
       { id: 'sHaut', label: 'BH', kind: 'input', detail: 'Capteur niveau haut (≥ 95 %)' },
@@ -361,7 +372,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
 };
 
 export function initSystem(machine: MachineId): MachineState {
-  if (machine === 'cuve') return { kind: 'cuve', level: 0, phase: 'idle', cycles: 0 };
+  if (machine === 'cuve') return { kind: 'cuve', level: 0, phase: 'idle', cycles: 0, aruSeen: false, aruStopped: false, restartSeen: false, wasRunning: false };
   if (machine === 'feux') return { kind: 'feux', tMs: 0, phase: 'none', cycles: 0, conflicts: 0, seenV: false };
   if (machine === 'convoyeur') return { kind: 'convoyeur', parts: [], tSpawn: TRI_SPAWN_MS - 2000, entered: 0, moveActual: false, okA: 0, okB: 0, errs: 0, misses: 0 };
   if (machine === 'robot') return { kind: 'robot', x: 0, painted: 0, done: false, cycles: 0, spills: 0 };
@@ -372,8 +383,9 @@ export function stepSystem(
   machine: MachineId,
   s: MachineState,
   outputs: Record<string, boolean>,
+  inputs: Record<string, boolean> = {},
 ): MachineState {
-  if (machine === 'cuve') return cuveStep(s as CuveState, outputs);
+  if (machine === 'cuve') return cuveStep(s as CuveState, outputs, inputs);
   if (machine === 'feux') return feuxStep(s as FeuxState, outputs);
   if (machine === 'convoyeur') return convoyeurStep(s as ConvoyeurState, outputs);
   if (machine === 'robot') return robotStep(s as RobotState, outputs);
@@ -393,6 +405,7 @@ export function machineInputs(
 ): Record<string, boolean> {
   const vars: Record<string, boolean> = {};
   if (machine === 'cuve' && s.kind === 'cuve') {
+    vars.bAru = true;
     vars.sBas = s.level <= 5;
     vars.sMoyen = s.level >= 50;
     vars.sHaut = s.level >= 95;
@@ -428,6 +441,8 @@ export function varsOf(machine: MachineId): VarDef[] {
 export function objectives(machine: MachineId, s: MachineState): { label: string; done: boolean }[] {
   if (machine === 'cuve' && s.kind === 'cuve') {
     return [
+      { label: 'L’AU (NF) coupe la machine en marche (logique inversée)', done: s.aruSeen && s.aruStopped },
+      { label: 'Verrouillé : redémarrage seulement après acquit MARCHE', done: s.restartSeen },
       { label: 'Monter jusqu’au capteur haut (BH)', done: s.phase === 'top' || s.cycles > 0 },
       { label: 'Vider jusqu’au capteur bas (BS) : 1 cycle complet', done: s.cycles >= 1 },
       { label: 'Enchaîner 3 cycles complets', done: s.cycles >= 3 },
