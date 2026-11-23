@@ -2,7 +2,7 @@
   "expo": {
     "name": "BG Autom",
     "slug": "bg-autom",
-    "version": "0.2.2",
+    "version": "0.3.0",
     "orientation": "portrait",
     "scheme": "bgautom",
     "userInterfaceStyle": "dark",

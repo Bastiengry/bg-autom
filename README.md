@@ -1,7 +1,8 @@
 # BG Autom — Labo d'automatisme (React Native / Expo)
 
 Application mobile d'apprentissage de l'automatisme : l'utilisateur **programme l'automate**
-et la machine (remplissage de cuve, feux de carrefour) exécute son programme en temps réel.
+et la machine exécute son programme en temps réel. 5 machines : remplissage de cuve,
+feux de carrefour, **tri sur convoyeur**, **robot de peinture**, **passage à niveau**.
 
 ## Les machines
 
@@ -31,6 +32,35 @@ et les relais internes `M1`–`M4` (une phase chacun).
 (ou orange) sur les deux voies simultanément. La simulation compte les **cycles complets**
 et affiche un compteur de **conflits**.
 
+### 📦 Tri sur convoyeur
+
+Des colis arrivent sur un tapis (`MOTEUR`). `D-ENTREE` = un colis est en tête, `D-TRI` = un colis est
+dans la zone de tri, et le lecteur d’étiquette `FRAGILE` indique un colis de type A. Les colis
+fragiles doivent être éjectés par le `POUSSOIR` en zone de tri, les colis normaux continuent
+jusqu’à la sortie B. Retours actionneurs : `B-MVT` (tapis en mouvement) et `P-RET` (poussoir sorti).
+La simulation compte les colis éjectés correctement / en erreur et les colis manqués.
+
+**Mission** : éjecter les fragiles, laisser passer les colis normaux, 0 erreur et 0 manqué.
+
+### 🎨 Robot de peinture
+
+Un chariot robot se déplace sur un rail au-dessus de la pièce : capteurs `P-G` (origine) /
+`P-M` (début de pièce) / `P-D` (fin de course), retour pistolet `R-PIST`. `BOMBE` peint la pièce
+pendant la traversée (~40 → 86 % du rail) ; une éclaboussure hors pièce est comptée. La peinture
+est aussi exposée comme valeur numérique (condition `level` ≥/≤ dans les éditeurs). Chaque pièce
+finie, le chariot revient à `P-G` pour la suivante.
+
+**Mission** : enchaîner les pièces sur MARCHE, 0 éclaboussure.
+
+### 🚂 Passage à niveau
+
+Un train arrive régulièrement. `D-1` (amont) annonce le train, `D-2` (aval) indique qu’il a dépassé
+le passage. Fermer la `BARRIÈRE` (descente progressive ~1 s) et allumer les `FEUX` AVANT que le train
+atteigne le passage, rouvrir après. Le retour `B-RET` confirme la position réelle. La simulation
+compte les **passages** et les **dangers** (train sur le passage, barrière ouverte).
+
+**Mission** : 2 trains franchis sans incident, barrière rouverte après chaque passage.
+
 ## Trois langages de programmation
 
 1. **Blocs simples** (débutant) : règles `SI condition ALORS sorties`, réévaluées à chaque cycle, sans mémoire.
@@ -53,13 +83,15 @@ en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui 
 - **Arrêt d'urgence** : coupe immédiatement toutes les sorties
 - **Missions** : objectifs de validation (cycles complets, feux sans conflit…) cochés en temps réel
 - **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
-- Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée / lampes feux)
+- Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée, lampes feux, tapis + colis, chariot de peinture, barrière de passage à niveau)
 
 ### 🛡️ Incidents (pannes & attaques)
 
 Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage d'un
-capteur (BH collé à 1), actionneur bloqué (vanne neutralisée), forçage d'une sortie (feu vert
-piraté) ou feu mort. Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
+Forçage de capteur (BH collé à 1, capteur P-D collé, capteur D-1 brouillé), actionneurs bloqués
+(vanne neutralisée, moteur tapis bloqué, poussoir forcé sorti, bombe forcée ouverte, barrière bloquée
+haute), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
+les missions incidents sont pensées pour Grafcet/Ladder (tempo TON, relais M mémoire). Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
 comparaison commande / retour lampe L1-L2) et **réagir en état sûr** (voyant d'alarme, tout
 rouge, arrêt process). La mission est validée en temps réel. La partie réseau (Modbus, pare-feux,
 IEC 62443) ferait l'objet d'une application séparée.
@@ -77,7 +109,7 @@ src/
   programs/       # examples.ts : programmes exemples par machine
   screens/        # GrafcetEditor, LadderEditor, BlocksEditor, SimulationScreen
   state/          # programs.tsx : persistance AsyncStorage (contexte React)
-  system/         # machines.ts : physique cuve + feux, registres de variables, objectifs
+  system/         # machines.ts : physique des 5 machines, registres de variables, objectifs
   types.ts        # types partagés (Condition union, programmes, machines)
 tests/            # tests moteur (npm test)
 ```

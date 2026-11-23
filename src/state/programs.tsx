@@ -8,7 +8,7 @@ import type {
   MachineId,
   ProgramMode,
 } from '../types';
-import { emptyProgram } from '../types';
+import { MACHINE_IDS, emptyProgram } from '../types';
 
 const STORAGE_KEY = 'bgautom.programs.v3';
 
@@ -25,11 +25,13 @@ function sanitizeBlocks(p: unknown): BlocksProgram {
 export type ProgramsMap = Record<ProgramMode, Record<MachineId, AnyProgram>>;
 
 function blankMap(): ProgramsMap {
-  return {
-    grafcet: { cuve: emptyProgram('grafcet'), feux: emptyProgram('grafcet') },
-    ladder: { cuve: emptyProgram('ladder'), feux: emptyProgram('ladder') },
-    blocks: { cuve: emptyProgram('blocks'), feux: emptyProgram('blocks') },
-  } as ProgramsMap;
+  const map = { grafcet: {}, ladder: {}, blocks: {} } as unknown as ProgramsMap;
+  for (const m of MACHINE_IDS) {
+    map.grafcet[m] = emptyProgram('grafcet');
+    map.ladder[m] = emptyProgram('ladder');
+    map.blocks[m] = emptyProgram('blocks');
+  }
+  return map;
 }
 
 interface ProgramsContextValue {
@@ -51,7 +53,7 @@ export function ProgramsProvider({ children }: { children: React.ReactNode }) {
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<ProgramsMap>;
           const blocks: Partial<Record<MachineId, BlocksProgram>> = {};
-          for (const m of ['cuve', 'feux'] as MachineId[]) {
+          for (const m of MACHINE_IDS) {
             if (parsed.blocks?.[m]) blocks[m] = sanitizeBlocks(parsed.blocks[m]);
           }
           setMap((prev) => ({

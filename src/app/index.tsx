@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Card, Chip, Pill, Screen, SectionTitle } from '../components/ui';
 import { C } from '../theme';
-import { MACHINES } from '../system/machines';
+import { initSystem, MACHINES, objectives } from '../system/machines';
 import type { MachineId, ProgramMode } from '../types';
 
 const EDITORS: { mode: ProgramMode; title: string; desc: string }[] = [
@@ -48,20 +48,13 @@ export default function Home() {
         <Text style={styles.p}>{def.intro}</Text>
       </Card>
 
-      {machine ? (
-        <Card style={styles.mission}>
-          <SectionTitle>{`🎯 À ${MACHINES[machine].name}`}</SectionTitle>
-          {machine === 'cuve' ? (
-            <Text style={styles.list}>
-              {'• À chaque appui MARCHE : remplir jusqu\u0027à BH, vider jusqu\u0027à BS, recommencer.\n• Les boutons sont à impulsion : mémorise la demande (étape Grafcet, auto-maintien Ladder…).\n• Compte les cycles complets dans la simulation !'}
-            </Text>
-          ) : (
-            <Text style={styles.list}>
-              {'• MARCHE lance le cycle : vert voie 2 + rouge voie 1, puis orange, puis l\u0027inverse.\n• Utilise les temporisations (TON) pour les durées de chaque phase.\n• Mission parfaite : 3 cycles complets, zéro conflit (jamais vert/vert ni vert/orange face à face).'}
-            </Text>
-          )}
-        </Card>
-      ) : null}
+      <Card style={styles.mission}>
+        <SectionTitle>{`🎯 À ${MACHINES[machine].name}`}</SectionTitle>
+        {objectives(machine, initSystem(machine)).map((o) => (
+          <Text key={o.label} style={styles.list}>{`• ${o.label}`}</Text>
+        ))}
+        <Text style={styles.p}>Les boutons sont à impulsion : mémorise la demande (étape Grafcet, auto-maintien Ladder…).</Text>
+      </Card>
 
       <SectionTitle>2. Choisis ton langage</SectionTitle>
       {EDITORS.map((e) => (

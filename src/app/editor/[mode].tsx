@@ -1,13 +1,13 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import type { MachineId, ProgramMode } from '../../types';
+import { MACHINE_IDS, type MachineId, type ProgramMode } from '../../types';
 import { GrafcetEditor } from '../../screens/GrafcetEditor';
 import { LadderEditor } from '../../screens/LadderEditor';
 import { BlocksEditor } from '../../screens/BlocksEditor';
 
 const MODES: ProgramMode[] = ['grafcet', 'ladder', 'blocks'];
-const MACHINES_ID: MachineId[] = ['cuve', 'feux'];
+const MACHINES_ID: MachineId[] = MACHINE_IDS;
 
 export default function EditorRoute() {
   const params = useLocalSearchParams<{ mode: string; machine?: string }>();

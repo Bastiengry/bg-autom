@@ -41,4 +41,52 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
       mission: 'Mode dégradé sûr dans les 5 s : R1 ET R2 commandés (les deux voies bloquées).',
     },
   ],
+  convoyeur: [
+    {
+      id: 'fMoteur',
+      label: 'Moteur tapis bloqué',
+      detail: 'Le moteur est commandé par l’automate mais le tapis ne tourne plus (accouplement désolidarisé ou attaque sur la sortie).',
+      hint: 'Compare commande et retour : MOTEUR commandé ET B-MVT inactif. Mémorise le défaut dans un relais M.',
+      mission: 'Arrêt sûr : MOTEUR coupé et VOY. R allumé (défaut mémorisé).',
+    },
+    {
+      id: 'fPous',
+      label: 'Poussoir forcé sorti',
+      detail: 'Le poussoir est forcé sorti en permanence : il éjecterait n’importe quel colis (sortie piratée).',
+      hint: 'Compare commande et retour : P-RET actif alors que POUSSOIR n’est pas commandé.',
+      mission: 'Arrêt sûr : MOTEUR coupé et VOY. R allumé (défaut mémorisé).',
+    },
+  ],
+  robot: [
+    {
+      id: 'fBombe',
+      label: 'Bombe forcée ouverte',
+      detail: 'La bombe vaporise en permanence, même sans commande (fuite ou piratage de la sortie).',
+      hint: 'Compare commande et retour : R-PIST actif alors que BOMBE n’est pas commandée.',
+      mission: 'Arrêt sûr : BOMBE coupée, chariot à l’arrêt, VOY. R allumé.',
+    },
+    {
+      id: 'fCapteur',
+      label: 'Capteur P-D forcé',
+      detail: 'Le capteur de fin de course droite est collé à 1 en permanence (panne ou mensonge sur le réseau de capteurs).',
+      hint: 'Impossibilité physique : P-D et P-G actifs en même temps (le chariot est à l’origine). Détection : « P-G » ET « P-D ».',
+      mission: 'Arrêt sûr : BOMBE coupée et VOY. R allumé.',
+    },
+  ],
+  pniveau: [
+    {
+      id: 'fBarriere',
+      label: 'Barrière bloquée haute',
+      detail: 'La barrière ne descend plus, même commandée (verrou mécanique ou sortie neutralisée). Un train arrive !',
+      hint: 'BARRIÈRE commandée depuis plus de 2 s (tempo TON) et B-RET toujours inactif.',
+      mission: 'Signale le défaut : ALARME allumée.',
+    },
+    {
+      id: 'fCapteur',
+      label: 'Brouillage capteur D-1',
+      detail: 'Le capteur amont envoie de fausses détections de train (brouillage ou message falsifié).',
+      hint: 'Impossibilité physique : D-1 amont et D-2 aval actifs en même temps.',
+      mission: 'Signale le défaut : ALARME allumée.',
+    },
+  ],
 };

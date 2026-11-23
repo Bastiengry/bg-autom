@@ -15,19 +15,49 @@ import {
 } from '../engine/interpreters';
 import {
   initSystem,
+  machineInputs,
   MACHINES,
+  numericOf,
   objectives,
   stepSystem,
   TICK_MS,
+  type ConvoyeurState,
   type MachineState,
+  type PNiveauState,
+  type RobotState,
 } from '../system/machines';
 import { INCIDENTS } from '../system/incidents';
 import { TankView } from '../components/TankView';
 import { FeuxView } from './FeuxView';
+import { ConveyorView } from './ConveyorView';
+import { RobotView } from './RobotView';
+import { PNiveauView } from './PNiveauView';
 import { Card, Chip, Pill, SectionTitle } from '../components/ui';
 
 const PRESS_TICKS = 6;
 const CHRONO_MAX = 120;
+
+function incidentOk(
+  machine: MachineId,
+  incident: string,
+  outputs: Record<string, boolean>,
+  vars: Record<string, boolean>,
+): boolean {
+  const on = (id: string) => !!outputs[id];
+  const off = (id: string) => !outputs[id];
+  if (machine === 'cuve') {
+    if (incident === 'fHaut') return on('voyRouge') && !!vars.sHaut && !vars.sMoyen;
+    return off('vanneR') && off('pompeV') && on('voyRouge');
+  }
+  if (machine === 'feux') return on('r1') && on('r2');
+  if (machine === 'convoyeur') return off('moteur') && on('voyRouge');
+  if (machine === 'robot') {
+    if (incident === 'fBombe') return off('bombe') && off('avancer') && off('reculer') && on('voyRouge');
+    return off('bombe') && on('voyRouge');
+  }
+  if (machine === 'pniveau') return on('alarme');
+  return false;
+}
 
 const SPEEDS = [0.5, 1, 2, 5] as const;
 type Speed = (typeof SPEEDS)[number];
@@ -69,16 +99,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
   const inputVars = useCallback(() => {
     const vars: Record<string, boolean> = {};
     for (const v of def.vars) if (v.kind === 'input') vars[v.id] = false;
-    if (machine === 'cuve' && sysRef.current.kind === 'cuve') {
-      vars.sBas = sysRef.current.level <= 5;
-      vars.sMoyen = sysRef.current.level >= 50;
-      vars.sHaut = sysRef.current.level >= 95;
-    }
-    if (machine === 'feux') {
-      const a = lastActualRef.current;
-      vars.l1 = !!(a.o1 || a.v1 || a.r1);
-      vars.l2 = !!(a.o2 || a.v2 || a.r2);
-    }
+    Object.assign(vars, machineInputs(machine, sysRef.current, lastActualRef.current));
     if (pressRef.current.bMarche > 0) vars.bMarche = true;
     if (pressRef.current.bArret > 0) vars.bArret = true;
     return vars;
@@ -90,13 +111,19 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       tickCountRef.current += 1;
       const vars = inputVars();
       if (incident === 'fHaut') vars.sHaut = true;
+      if (incident === 'fCapteur' && machine === 'robot') vars.pDroite = true;
+      if (incident === 'fCapteur' && machine === 'pniveau') vars.dEntree = true;
       const run = runProgram(mode, program, vars, interpRef.current, {
-        level: sysRef.current.kind === 'cuve' ? sysRef.current.level : 0,
+        level: numericOf(machine, sysRef.current),
       });
       let outputs = run.outputs;
       if (incident === 'fVanne') outputs = { ...outputs, vanneR: false };
       if (incident === 'fV1') outputs = { ...outputs, v1: true };
       if (incident === 'fR2Dead') outputs = { ...outputs, r2: false };
+      if (incident === 'fMoteur') outputs = { ...outputs, moteur: false };
+      if (incident === 'fPous') outputs = { ...outputs, poussoir: true };
+      if (incident === 'fBombe') outputs = { ...outputs, bombe: true };
+      if (incident === 'fBarriere') outputs = { ...outputs, barriere: false };
       lastActualRef.current = outputs;
       interpRef.current = run.state;
       const nextSys = stepSystem(machine, sysRef.current, outputs);
@@ -109,13 +136,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
           ? Infinity
           : (tickCountRef.current - faultStartRef.current) * TICK_MS;
       if (incident && sinceMs >= 500 && !seenRef.current[incident]) {
-        let ok = false;
-        if (machine === 'cuve') {
-          if (incident === 'fHaut') ok = !!outputs.voyRouge && !!vars.sHaut && !vars.sMoyen;
-          else ok = !outputs.vanneR && !outputs.pompeV && !!outputs.voyRouge;
-        } else {
-          ok = !!outputs.r1 && !!outputs.r2;
-        }
+        const ok = incidentOk(machine, incident, outputs, vars);
         if (ok) {
           seenRef.current[incident] = true;
           setSeen({ ...seenRef.current });
@@ -189,9 +210,17 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
               level={view.sys.kind === 'cuve' ? view.sys.level : 0}
               vars={view.outputs}
             />
-          ) : (
-            <FeuxView vars={view.outputs} />
-          )}
+          ) : null}
+          {machine === 'feux' ? <FeuxView vars={view.outputs} /> : null}
+          {machine === 'convoyeur' ? (
+            <ConveyorView sys={view.sys as ConvoyeurState} outputs={view.outputs} />
+          ) : null}
+          {machine === 'robot' ? (
+            <RobotView sys={view.sys as RobotState} outputs={view.outputs} />
+          ) : null}
+          {machine === 'pniveau' ? (
+            <PNiveauView sys={view.sys as PNiveauState} outputs={view.outputs} />
+          ) : null}
           <Text style={styles.describe}>{def.describe(view.sys)}</Text>
         </Card>
 
@@ -251,7 +280,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
             </>
           ) : (
             <Text style={styles.hint}>
-              Simule une panne ou un forçage malveillant, puis programme la détection et la réaction en état sûr (relais internes M, retours lampe L1/L2, capteurs, tempo TON).
+              Simule une panne ou un forçage malveillant, puis programme la détection (incohérences commande/retour, impossibilités physiques, tempo TON) et la réaction en état sûr.
             </Text>
           )}
         </Card>

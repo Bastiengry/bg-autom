@@ -1,10 +1,10 @@
 import React from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import type { MachineId, ProgramMode } from '../../types';
+import { MACHINE_IDS, type MachineId, type ProgramMode } from '../../types';
 import { SimulationScreen } from '../../screens/SimulationScreen';
 
 const MODES: ProgramMode[] = ['grafcet', 'ladder', 'blocks'];
-const MACHINES_ID: MachineId[] = ['cuve', 'feux'];
+const MACHINES_ID: MachineId[] = MACHINE_IDS;
 
 export default function SimulationRoute() {
   const params = useLocalSearchParams<{ mode: string; machine?: string }>();

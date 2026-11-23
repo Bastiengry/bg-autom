@@ -1,20 +1,13 @@
 const assert = require('node:assert');
 const { runProgram, initInterpState } = require('../.test-out/engine/interpreters.js');
-const { initSystem, stepSystem } = require('../.test-out/system/machines.js');
+const { initSystem, stepSystem, machineInputs, numericOf } = require('../.test-out/system/machines.js');
 const { exampleGrafcet, exampleLadder, exampleBlocks } = require('../.test-out/programs/examples.js');
 
 const TICKS_PER_S = 10;
-const sensors = (sys) => {
-  if (sys.kind !== 'cuve') return {};
-  return {
-    sBas: sys.level <= 5,
-    sMoyen: sys.level >= 50,
-    sHaut: sys.level >= 95,
-  };
-};
-const tick = (machine, vars, sys, interp, mode, program) => {
-  const ctx = { level: sys.kind === 'cuve' ? sys.level : 0 };
-  const res = runProgram(mode, program, { ...vars, ...sensors(sys) }, interp, ctx);
+const tick = (machine, vars, sys, interp, mode, program, actual = {}) => {
+  const inputs = { ...machineInputs(machine, sys, actual), ...vars };
+  const ctx = { level: numericOf(machine, sys) };
+  const res = runProgram(mode, program, inputs, interp, ctx);
   return { sys: stepSystem(machine, sys, res.outputs), interp: res.state, outputs: res.outputs };
 };
 
@@ -250,5 +243,173 @@ function runFeuxFeedbackSafeMode() {
 
 runCuveIncoherenceDetect();
 runFeuxFeedbackSafeMode();
+
+
+function runConvoyeurGrafcet() {
+  const program = exampleGrafcet('convoyeur');
+  const machine = 'convoyeur';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  for (let i = 0; i < 40 * TICKS_PER_S; i++) {
+    const press = i < 4 || (i > 200 && i < 210);
+    ({ sys, interp } = tick(machine, { bMarche: press }, sys, interp, 'grafcet', program));
+  }
+  if (sys.kind !== 'convoyeur') return;
+  assert(sys.okA >= 1, `grafcet convoyeur: au moins un fragile \u00e9ject\u00e9, okA ${sys.okA}`);
+  assert(sys.okB >= 1, `grafcet convoyeur: au moins un normal en sortie B, okB ${sys.okB}`);
+  assert(sys.misses === 0 && sys.errs === 0, `grafcet convoyeur: 0 manqu\u00e9/erreur, obtenu ${sys.misses}/${sys.errs}`);
+  console.log(`\u2713 Grafcet convoyeur : fragiles \u00e9ject\u00e9s ${sys.okA}, normaux ${sys.okB}, 0 erreur`);
+}
+
+function runConvoyeurLadder() {
+  const program = exampleLadder('convoyeur');
+  const machine = 'convoyeur';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let interped = null;
+  for (let i = 0; i < 40 * TICKS_PER_S; i++) {
+    const press = i < 4 || (i > 200 && i < 210);
+    const r = tick(machine, { bMarche: press }, sys, interp, 'ladder', program, interped ? interped : {});
+    interped = r.outputs;
+    sys = r.sys;
+    interp = r.interp;
+  }
+  assert(sys.kind === 'convoyeur');
+  assert(sys.okA >= 1 && sys.okB >= 1, `ladder convoyeur: okA ${sys.okA} okB ${sys.okB}`);
+  assert(sys.misses === 0 && sys.errs === 0, `ladder convoyeur: 0 manqu\u00e9/erreur, obtenu ${sys.misses}/${sys.errs}`);
+  console.log(`\u2713 Ladder convoyeur : fragiles \u00e9ject\u00e9s ${sys.okA}, normaux ${sys.okB}, 0 erreur`);
+}
+
+function runConvoyeurBlocks() {
+  const program = exampleBlocks('convoyeur');
+  const machine = 'convoyeur';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  for (let i = 0; i < 30 * TICKS_PER_S; i++) {
+    ({ sys, interp } = tick(machine, {}, sys, interp, 'blocks', program));
+  }
+  if (sys.kind !== 'convoyeur') return;
+  assert(sys.okA >= 1 && sys.okB >= 1, `blocks convoyeur: okA ${sys.okA} okB ${sys.okB}`);
+  assert(sys.misses === 0 && sys.errs === 0, `blocks convoyeur: 0 manqu\u00e9/erreur, obtenu ${sys.misses}/${sys.errs}`);
+  console.log(`\u2713 Blocks convoyeur : fragiles ${sys.okA}, normaux ${sys.okB}, 0 erreur (sans m\u00e9moire)`);
+}
+
+function runRobotGrafcet() {
+  const program = exampleGrafcet('robot');
+  const machine = 'robot';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  for (let i = 0; i < 45 * TICKS_PER_S; i++) {
+    const press = i < 4;
+    ({ sys, interp } = tick(machine, { bMarche: press }, sys, interp, 'grafcet', program));
+  }
+  if (sys.kind !== 'robot') return;
+  assert(sys.cycles >= 2, `grafcet robot: 2 pi\u00e8ces peintes attendues, obtenu ${sys.cycles}`);
+  assert(sys.spills === 0, `grafcet robot: 0 \u00e9claboussure attendue, obtenu ${sys.spills}`);
+  console.log(`\u2713 Grafcet robot : ${sys.cycles} pi\u00e8ces peintes, 0 \u00e9claboussure`);
+}
+
+function runRobotLadder() {
+  const program = exampleLadder('robot');
+  const machine = 'robot';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let prevOut = {};
+  for (let i = 0; i < 45 * TICKS_PER_S; i++) {
+    const press = i < 4;
+    const r = tick(machine, { bMarche: press }, sys, interp, 'ladder', program, prevOut);
+    prevOut = r.outputs;
+    sys = r.sys;
+    interp = r.interp;
+  }
+  assert(sys.kind === 'robot');
+  assert(sys.cycles >= 2, `ladder robot: 2 pi\u00e8ces peintes attendues, obtenu ${sys.cycles}`);
+  assert(sys.spills === 0, `ladder robot: 0 \u00e9claboussure attendue, obtenu ${sys.spills}`);
+  console.log(`\u2713 Ladder robot : ${sys.cycles} pi\u00e8ce(s) peinte(s), 0 \u00e9claboussure`);
+}
+
+function runPniveauGrafcet() {
+  const program = exampleGrafcet('pniveau');
+  const machine = 'pniveau';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  for (let i = 0; i < 40 * TICKS_PER_S; i++) {
+    ({ sys, interp } = tick(machine, {}, sys, interp, 'grafcet', program));
+  }
+  assert(sys.kind === 'pniveau');
+  assert(sys.trains >= 2, `grafcet pniveau: 2 trains attendus, obtenu ${sys.trains}`);
+  assert(sys.seenClosed, 'grafcet pniveau: la barri\u00e8re doit \u00eatre ferm\u00e9e au passage');
+  assert(sys.danger === 0, `grafcet pniveau: 0 danger attendu, obtenu ${sys.danger}`);
+  console.log(`\u2713 Grafcet passage \u00e0 niveau : ${sys.trains} trains, barri\u00e8re ferm\u00e9e, 0 danger`);
+}
+
+function runPniveauLadder() {
+  const program = exampleLadder('pniveau');
+  const machine = 'pniveau';
+  let sys = initSystem(machine);
+  let interp = initInterpState();
+  let interped = null;
+  let falseAlarm = false;
+  for (let i = 0; i < 40 * TICKS_PER_S; i++) {
+    const r = tick(machine, {}, sys, interp, 'ladder', program, interped ? interped : {});
+    interped = r.outputs;
+    sys = r.sys;
+    interp = r.interp;
+    if (!sys.seenClosed && r.outputs.alarme) falseAlarm = true;
+  }
+  assert(sys.kind === 'pniveau');
+  assert(sys.trains >= 2 && sys.seenClosed && sys.danger === 0, `ladder pniveau: trains ${sys.trains} danger ${sys.danger}`);
+  assert(!falseAlarm, 'ladder pniveau: fausse alarme d\u00e9tect\u00e9e');
+  console.log(`\u2713 Ladder passage \u00e0 niveau : ${sys.trains} trains, 0 danger, pas de fausse alarme`);
+}
+
+runConvoyeurGrafcet();
+runConvoyeurLadder();
+runConvoyeurBlocks();
+runRobotGrafcet();
+runRobotLadder();
+runPniveauGrafcet();
+runPniveauLadder();
+
+
+function runConvoyeurIncoherenceMoteur() {
+  const { exampleLadder: ex } = require('../.test-out/programs/examples.js');
+  const program = ex('convoyeur');
+  let interp = initInterpState();
+  let interped = null;
+  const vars = { bMarche: true, bArret: false, dEntree: true, dTri: false, tTag: false, bMvt: false, pRet: false };
+  let moteurOn = false;
+  for (let i = 0; i < 20; i++) {
+    const r = runProgram('ladder', program, { ...vars, ...(interped ? {} : {}) }, interp, { level: 0 });
+    interped = r.outputs;
+    interp = r.state;
+    if (r.outputs.moteur) moteurOn = true;
+    if (i > 5) {
+      assert(!r.outputs.moteur, `convoyeur incident: moteur doit couper (cycle ${i})`);
+      assert(r.outputs.voyRouge, `convoyeur incident: VOY. R attendu (cycle ${i})`);
+    }
+  }
+  assert(moteurOn, 'convoyeur incident: le moteur a bien \u00e9t\u00e9 command\u00e9 avant d\u00e9tection');
+  console.log('\u2713 Incident convoyeur : MOTEUR command\u00e9 sans B-MVT \u2192 d\u00e9faut m\u00e9moris\u00e9, moteur coup\u00e9');
+}
+
+function runPniveauBarriereBloqueeAlarme() {
+  const { exampleLadder: ex } = require('../.test-out/programs/examples.js');
+  const program = ex('pniveau');
+  let interp = initInterpState();
+  const vars = { bMarche: false, bArret: false, dEntree: true, dSortie: false, rB: false };
+  let alarm = false;
+  for (let i = 0; i < 40; i++) {
+    const r = runProgram('ladder', program, vars, interp, { level: 0 });
+    interp = r.state;
+    if (i > 3 && i < 15) assert(!r.outputs.alarme, `pniveau: pas de fausse alarme en dessous de 2 s (cycle ${i})`);
+    if (r.outputs.alarme) { alarm = true; break; }
+  }
+  assert(alarm, 'pniveau incident: ALARME attendue quand la barri\u00e8re command\u00e9e ne descends pas');
+  console.log('\u2713 Incident passage \u00e0 niveau : BARRI\u00c8RE command\u00e9e sans B-RET (TON 2 s) \u2192 ALARME');
+}
+
+runConvoyeurIncoherenceMoteur();
+runPniveauBarriereBloqueeAlarme();
 
 console.log('Tous les tests moteur passent.');
