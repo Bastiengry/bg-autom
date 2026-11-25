@@ -1,6 +1,6 @@
-export type MachineId = 'cuve' | 'feux' | 'convoyeur' | 'robot' | 'pniveau';
+export type MachineId = 'cuve' | 'feux' | 'convoyeur' | 'robot' | 'pniveau' | 'ecluse';
 
-export const MACHINE_IDS: MachineId[] = ['cuve', 'feux', 'convoyeur', 'robot', 'pniveau'];
+export const MACHINE_IDS: MachineId[] = ['cuve', 'feux', 'convoyeur', 'robot', 'pniveau', 'ecluse'];
 export type ProgramMode = 'grafcet' | 'ladder' | 'blocks';
 
 export type Condition =

@@ -96,4 +96,20 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
       mission: 'Signale le défaut : ALARME allumée.',
     },
   ],
+  ecluse: [
+    {
+      id: 'fNiveau',
+      label: 'Capteur N-AM collé à 1',
+      detail: 'Le capteur de niveau amont reste collé à 1 : l’automate croît le sas plein alors qu’il ne l’est pas, et pourrait ouvrir une porte sur un niveau non égalisé.',
+      hint: 'Impossibilité physique : N-AM et N-AV actifs en même temps (le bassin ne peut pas être à la fois vide et plein).',
+      mission: 'Réaction sûre : MOTEURS P-AM, P-AV et VANNES coupées, ALARME allumée.',
+    },
+    {
+      id: 'fPorte',
+      label: 'Porte aval bloquée',
+      detail: 'La porte aval est commandée mais ne bouge plus (verrou mécanique ou sortie neutralisée) : aucun fin de course P-AV-Ouv malgré la commande.',
+      hint: 'M-PVAL commandée depuis plus de 2 s (tempo TON) et P-AV-Ouv toujours inactif.',
+      mission: 'Signale le défaut : ALARME allumée.',
+    },
+  ],
 };

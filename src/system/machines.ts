@@ -58,7 +58,20 @@ export interface PNiveauState {
   seenClosed: boolean;
 }
 
-export type MachineState = CuveState | FeuxState | ConvoyeurState | RobotState | PNiveauState;
+export interface EcluseState {
+  kind: 'ecluse';
+  lvl: number;
+  pAm: number;
+  pAv: number;
+  boat: 'amont' | 'aval' | 'sas' | null;
+  sens: 'desc' | 'mont';
+  nSpawn: number;
+  tSpawn: number;
+  transits: number;
+  danger: number;
+}
+
+export type MachineState = CuveState | FeuxState | ConvoyeurState | RobotState | PNiveauState | EcluseState;
 
 export interface MachineDef {
   id: MachineId;
@@ -97,6 +110,12 @@ export const PN_IN_B = 30;
 export const PN_OUT = 75;
 export const PN_SPAWN_MS = 12000;
 export const BAR_RATE = 10;
+
+export const ECL_GATE_RATE = 10;
+export const ECL_LVL_RATE = 2;
+export const ECL_SPAWN_MS = 6500;
+export const ECL_AM_READY = 95;
+export const ECL_AV_READY = 5;
 
 function cuveStep(s: CuveState, o: Record<string, boolean>, inputs: Record<string, boolean>): CuveState {
   let level = s.level + (o.vanneR ? C_RATE : 0) - (o.pompeV ? C_RATE : 0);
@@ -229,6 +248,59 @@ function pniveauStep(s: PNiveauState, o: Record<string, boolean>): PNiveauState 
     }
   }
   return { kind: 'pniveau', tSpawn, train, trains, barPos, danger, seenClosed };
+}
+
+function ecluseStep(s: EcluseState, o: Record<string, boolean>): EcluseState {
+  let lvl = s.lvl;
+  let pAm = s.pAm;
+  let pAv = s.pAv;
+  let boat = s.boat;
+  let sens = s.sens;
+  const sealed = pAm <= 5 && pAv <= 5;
+
+  // Securites physiques : une porte ne peut s’ouvrir que si le niveau est égalisé de son côté.
+  let danger = s.danger;
+  if (o.mPmon && lvl < ECL_AM_READY) danger += 1;
+  if (o.mPval && lvl > ECL_AV_READY) danger += 1;
+  if (o.mPmon && lvl >= ECL_AM_READY) pAm = Math.min(100, pAm + ECL_GATE_RATE);
+  if (o.mPval && lvl <= ECL_AV_READY) pAv = Math.min(100, pAv + ECL_GATE_RATE);
+  if (!o.mPmon) pAm = Math.max(0, pAm - ECL_GATE_RATE);
+  if (!o.mPval) pAv = Math.max(0, pAv - ECL_GATE_RATE);
+
+  // Etancheite : les vannes ne font rien si une porte n’est pas fermée.
+  if (o.vRem && !o.vVid && sealed) lvl = Math.min(100, lvl + ECL_LVL_RATE);
+  if (o.vVid && !o.vRem && sealed) lvl = Math.max(0, lvl - ECL_LVL_RATE);
+
+  // Descente : le bateau entre par l’amont quand le sas est plein ; sortie par l’aval vide.
+  // Montée : le miroir. Sortie = transit validé.
+  let transits = s.transits;
+  if (boat === 'amont' && pAm >= 95 && lvl >= ECL_AM_READY) boat = 'sas';
+  else if (boat === 'aval' && pAv >= 95 && lvl <= ECL_AV_READY) boat = 'sas';
+  else if (boat === 'sas') {
+    if (sens === 'desc' && pAv >= 95 && lvl <= ECL_AV_READY) {
+      boat = null;
+      transits += 1;
+    } else if (sens === 'mont' && pAm >= 95 && lvl >= ECL_AM_READY) {
+      boat = null;
+      transits += 1;
+    }
+  }
+
+  // Spawn : un bateau par côté en alternance (un descendant, puis un montant).
+  let tSpawn = s.tSpawn + TICK_MS;
+  if (boat === null && tSpawn >= ECL_SPAWN_MS) {
+    tSpawn = 0;
+    if (s.nSpawn % 2 === 0) {
+      boat = 'amont';
+      sens = 'desc';
+    } else {
+      boat = 'aval';
+      sens = 'mont';
+    }
+    let nSpawn = s.nSpawn + 1;
+    return { kind: 'ecluse', lvl, pAm, pAv, boat, sens, nSpawn, tSpawn, transits, danger };
+  }
+  return { kind: 'ecluse', lvl, pAm, pAv, boat, sens, nSpawn: s.nSpawn, tSpawn, transits, danger };
 }
 
 export const MACHINES: Record<MachineId, MachineDef> = {
@@ -369,6 +441,44 @@ export const MACHINES: Record<MachineId, MachineDef> = {
         ? `Train : ${s.train === null ? 'aucun' : `en approche (${Math.round(s.train)} %)`} — Barrière : ${Math.round(s.barPos)} % — Passages : ${s.trains} — Dangers : ${s.danger}`
         : '',
   },
+  ecluse: {
+    id: 'ecluse',
+    name: 'Écluse',
+    icon: '\u{1F6A4}',
+    intro:
+      'Une écluse fait franchir le bateau entre le canal aval (niveau 0 %) et le canal amont (niveau 100 %). Cycle d’un transit descendant : 1. portes fermées, remplir le sas jusqu’à N-AM ; 2. ouvrir la porte amont : le bateau D-DET entre dans le sas (D-SAS) ; 3. refermer ; 4. vider jusqu’à N-AV ; 5. ouvrir la porte aval : le bateau sort ; 6. refermer. Un transit montant, c’est le miroir (sas déjà bas). Les bateaux alternent : descendant, puis montant… mémorise donc le côté d’entrée (relais en Ladder, branchements en Grafcet — le mode Blocs, sans mémoire, ne saura faire que la descente). Sécurités de la machine : une porte commandée hors égalisation est refusée et comptée en DANGER, et les vannes n’ont aucun effet si une porte n’est pas fermée (sas non étanche).',
+    vars: [
+      { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche » (mise en service)' },
+      { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'dAm', label: 'D-DET AM', kind: 'input', detail: 'Un bateau attend devant la porte amont (il veut descendre)' },
+      { id: 'dAv', label: 'D-DET AV', kind: 'input', detail: 'Un bateau attend devant la porte aval (il veut monter)' },
+      { id: 'dSas', label: 'D-SAS', kind: 'input', detail: 'Un bateau est dans le sas (entre les deux portes)' },
+      { id: 'pAmOuv', label: 'P-AM-Ouv', kind: 'input', detail: 'Fin de course : porte amont ouverte' },
+      { id: 'pAmFerm', label: 'P-AM-Ferm', kind: 'input', detail: 'Fin de course : porte amont fermée' },
+      { id: 'pAvOuv', label: 'P-AV-Ouv', kind: 'input', detail: 'Fin de course : porte aval ouverte' },
+      { id: 'pAvFerm', label: 'P-AV-Ferm', kind: 'input', detail: 'Fin de course : porte aval fermée' },
+      { id: 'nAm', label: 'N-AM', kind: 'input', detail: 'Niveau amont atteint (≥ 95 %) : sas égalisé avec le canal amont' },
+      { id: 'nAv', label: 'N-AV', kind: 'input', detail: 'Niveau aval atteint (≤ 5 %) : sas égalisé avec le canal aval' },
+      { id: 'mPmon', label: 'MOTEUR P-AM', kind: 'output', detail: 'Ouvre la porte amont (off : la porte se referme d’elle-même)' },
+      { id: 'mPval', label: 'MOTEUR P-AV', kind: 'output', detail: 'Ouvre la porte aval (off : la porte se referme d’elle-même)' },
+      { id: 'vRem', label: 'VANNE REMP', kind: 'output', detail: 'Remplit le sas depuis le canal amont (sans effet portes ouvertes)' },
+      { id: 'vVid', label: 'VANNE VID', kind: 'output', detail: 'Vide le sas vers le canal aval (sans effet portes ouvertes)' },
+      { id: 'fVam', label: 'FEU V AM', kind: 'output', detail: 'Feu vert amont : autorise l’accostage / l’entrée' },
+      { id: 'fVav', label: 'FEU V AV', kind: 'output', detail: 'Feu vert aval : autorise l’accostage / l’entrée' },
+      { id: 'alarme', label: 'ALARME', kind: 'output', detail: 'Gyrophare de défaut (porte bloquée, capteur mensonger…)' },
+      { id: 'Rdesc', label: 'R-DESC', kind: 'internal', detail: 'Relais : le bateau courant vient de l’amont (transit descendant)' },
+      { id: 'Rmon', label: 'R-MONT', kind: 'internal', detail: 'Relais : le bateau courant vient de l’aval (transit montant)' },
+      { id: 'Mrem', label: 'M-REM', kind: 'internal', detail: 'Phase remplissage (approche amont ou sortie montante)' },
+      { id: 'Mvid', label: 'M-VID', kind: 'internal', detail: 'Phase vidange (approche aval ou sortie descendante)' },
+      { id: 'MouvAm', label: 'M-OUV-AM', kind: 'internal', detail: 'Commande explicitée d’ouverture de la porte amont' },
+      { id: 'MouvAv', label: 'M-OUV-AV', kind: 'internal', detail: 'Commande explicitée d’ouverture de la porte aval' },
+    ],
+    numericLabel: 'Niveau bassin',
+    describe: (s) =>
+      s.kind === 'ecluse'
+        ? `Bassin : ${Math.round(s.lvl)} % (aval 0 / amont 100) — Portes : AM ${Math.round(s.pAm)} % / AV ${Math.round(s.pAv)} % — Bateau : ${s.boat ?? 'aucun'} (${s.sens}) — Transits : ${s.transits} — Dangers : ${s.danger}`
+        : '',
+  },
 };
 
 export function initSystem(machine: MachineId): MachineState {
@@ -376,6 +486,7 @@ export function initSystem(machine: MachineId): MachineState {
   if (machine === 'feux') return { kind: 'feux', tMs: 0, phase: 'none', cycles: 0, conflicts: 0, seenV: false };
   if (machine === 'convoyeur') return { kind: 'convoyeur', parts: [], tSpawn: TRI_SPAWN_MS - 2000, entered: 0, moveActual: false, okA: 0, okB: 0, errs: 0, misses: 0 };
   if (machine === 'robot') return { kind: 'robot', x: 0, painted: 0, done: false, cycles: 0, spills: 0 };
+  if (machine === 'ecluse') return { kind: 'ecluse', lvl: 0, pAm: 0, pAv: 0, boat: null, sens: 'desc', nSpawn: 0, tSpawn: ECL_SPAWN_MS - 3500, transits: 0, danger: 0 };
   return { kind: 'pniveau', tSpawn: PN_SPAWN_MS - 3000, train: null, trains: 0, barPos: 0, danger: 0, seenClosed: false };
 }
 
@@ -389,12 +500,14 @@ export function stepSystem(
   if (machine === 'feux') return feuxStep(s as FeuxState, outputs);
   if (machine === 'convoyeur') return convoyeurStep(s as ConvoyeurState, outputs);
   if (machine === 'robot') return robotStep(s as RobotState, outputs);
+  if (machine === 'ecluse') return ecluseStep(s as EcluseState, outputs);
   return pniveauStep(s as PNiveauState, outputs);
 }
 
 export function numericOf(machine: MachineId, s: MachineState): number {
   if (machine === 'cuve' && s.kind === 'cuve') return s.level;
   if (machine === 'robot' && s.kind === 'robot') return s.painted;
+  if (machine === 'ecluse' && s.kind === 'ecluse') return s.lvl;
   return 0;
 }
 
@@ -426,6 +539,16 @@ export function machineInputs(
     vars.pMilieu = s.x >= ROBOT_MID_LO && s.x <= ROBOT_MID_HI;
     vars.pDroite = s.x >= ROBOT_RIGHT;
     vars.rp = !!actual.bombe;
+  } else if (machine === 'ecluse' && s.kind === 'ecluse') {
+    vars.dAm = s.boat === 'amont';
+    vars.dAv = s.boat === 'aval';
+    vars.dSas = s.boat === 'sas';
+    vars.pAmOuv = s.pAm >= 95;
+    vars.pAmFerm = s.pAm <= 5;
+    vars.pAvOuv = s.pAv >= 95;
+    vars.pAvFerm = s.pAv <= 5;
+    vars.nAm = s.lvl >= 95;
+    vars.nAv = s.lvl <= 5;
   } else if (machine === 'pniveau' && s.kind === 'pniveau') {
     vars.dEntree = s.train !== null && s.train >= PN_IN_A && s.train <= PN_IN_B;
     vars.dSortie = s.train !== null && s.train >= PN_OUT;
@@ -478,6 +601,15 @@ export function objectives(machine: MachineId, s: MachineState): { label: string
       { label: '2 trains franchis sans incident (barrière fermée)', done: s.trains >= 2 && s.danger === 0 },
       { label: 'Rouvrir la barrière après le passage', done: s.seenClosed && s.trains >= 1 && s.train === null && s.barPos <= 5 },
       { label: 'Aucun franchissement dangereux', done: s.trains >= 1 && s.danger === 0 },
+    ];
+  }
+  if (machine === 'ecluse' && s.kind === 'ecluse') {
+    return [
+      { label: 'Fais franchir le premier bateau (amont \u2192 aval : remplir, entrer, vider, sortir)', done: s.transits >= 1 },
+      { label: 'Transit inverse (aval \u2192 amont) : gère le deuxième sens', done: s.transits >= 2 },
+      { label: '3 éclusages complets, sens alternés', done: s.transits >= 3 },
+      { label: 'Aucune porte commandée hors égalisation (0 danger)', done: s.transits >= 1 && s.danger === 0 },
+      { label: 'Tout fermé et au repos entre deux bateaux', done: s.transits >= 3 && s.pAm <= 5 && s.pAv <= 5 && s.boat === null },
     ];
   }
   return [];

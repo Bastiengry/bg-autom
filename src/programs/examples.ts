@@ -185,11 +185,92 @@ function pniveauGrafcet(): GrafcetProgram {
   return p;
 }
 
+function ecluseGrafcet(): GrafcetProgram {
+  // Cycle bisens : attente, pré-niveau, entrée, fermeture, niveau de sortie,
+  // sortie, fermeture — chaîne montée symétrique (8…14) puis retour à l’attente 1.
+  const p = emptyGrafcet();
+  const loopMont = { condition: [v('dAm')], goto: 2 };
+  p.nodes = [
+    { actions: [], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    {
+      actions: [],
+      transition: [v('dAm')],
+      afterSeconds: null,
+      alt: [{ condition: [v('dAv')], goto: 8 }, stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    {
+      actions: [
+        { varId: 'mPmon', mode: 'level' },
+        { varId: 'fVam', mode: 'level' },
+      ],
+      transition: [v('dSas')],
+      afterSeconds: null,
+      alt: [stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    {
+      actions: [
+        { varId: 'mPval', mode: 'level' },
+        { varId: 'fVav', mode: 'level' },
+      ],
+      transition: [notV('dSas')],
+      afterSeconds: null,
+      alt: [stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    {
+      actions: [],
+      transition: [v('dAv')],
+      afterSeconds: null,
+      alt: [loopMont, stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    {
+      actions: [
+        { varId: 'mPval', mode: 'level' },
+        { varId: 'fVav', mode: 'level' },
+      ],
+      transition: [v('dSas')],
+      afterSeconds: null,
+      alt: [stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    {
+      actions: [
+        { varId: 'mPmon', mode: 'level' },
+        { varId: 'fVam', mode: 'level' },
+      ],
+      transition: [notV('dSas')],
+      afterSeconds: null,
+      alt: [stopBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+  ];
+  p.loopTo = 1;
+  return p;
+}
+
 export function exampleGrafcet(machine: MachineId): GrafcetProgram {
   if (machine === 'cuve') return cuveGrafcet();
   if (machine === 'convoyeur') return convoyeurGrafcet();
   if (machine === 'robot') return robotGrafcet();
   if (machine === 'pniveau') return pniveauGrafcet();
+  if (machine === 'ecluse') return ecluseGrafcet();
   return feuxGrafcet();
 }
 
@@ -384,11 +465,69 @@ function pniveauLadder(): LadderProgram {
   };
 }
 
+function ecluseLadder(): LadderProgram {
+  const relais = (id: string): Condition => v(id);
+  return {
+    timers: [
+      { id: 't1', type: 'TON', presetMs: 2000, input: [relais('mPmon'), notV('pAmOuv')] },
+      { id: 't2', type: 'TON', presetMs: 2000, input: [relais('mPval'), notV('pAvOuv')] },
+    ],
+    counters: [],
+    rungs: [
+      { output: 'Rdesc', coilType: 'reset', terms: [{ type: 'edge', varId: 'dSas', dir: 'falling' }], junctions: [] },
+      { output: 'Rmon', coilType: 'reset', terms: [{ type: 'edge', varId: 'dSas', dir: 'falling' }], junctions: [] },
+      // Memoire du cote d’entree du bateau (un Rdesc, un Rmon), reset au repos.
+      { output: 'Rdesc', coilType: 'set', terms: [{ type: 'edge', varId: 'dAm', dir: 'rising' }], junctions: [] },
+      { output: 'Rmon', coilType: 'set', terms: [{ type: 'edge', varId: 'dAv', dir: 'rising' }], junctions: [] },
+      {
+        output: 'Rdesc',
+        coilType: 'reset',
+        terms: [v('pAmFerm'), v('pAvFerm'), notV('dAm'), notV('dAv'), notV('dSas')],
+        junctions: ['AND', 'AND', 'AND', 'AND'],
+      },
+      {
+        output: 'Rmon',
+        coilType: 'reset',
+        terms: [v('pAmFerm'), v('pAvFerm'), notV('dAm'), notV('dAv'), notV('dSas')],
+        junctions: ['AND', 'AND', 'AND', 'AND'],
+      },
+      // Phases vannes (approche ou sortie dans le bon sens, jusqu’au niveau visé).
+      { output: 'Mrem', coilType: 'reset', terms: [v('nAm')], junctions: [] },
+      { output: 'Mrem', coilType: 'set', terms: [v('dAm'), notV('nAm'), notV('alarme')], junctions: ['AND', 'AND'] },
+      { output: 'Mrem', coilType: 'set', terms: [v('dSas'), v('Rmon'), notV('nAm'), notV('alarme')], junctions: ['AND', 'AND', 'AND'] },
+      { output: 'Mvid', coilType: 'reset', terms: [v('nAv')], junctions: [] },
+      { output: 'Mvid', coilType: 'set', terms: [v('dSas'), v('Rdesc'), notV('nAv'), notV('alarme')], junctions: ['AND', 'AND', 'AND'] },
+      // Ouvertures de portes (entree ET sortie), reset par front ou au repos complet.
+      { output: 'MouvAm', coilType: 'reset', terms: [{ type: 'edge', varId: 'dAm', dir: 'falling' }], junctions: [] },
+      { output: 'MouvAm', coilType: 'reset', terms: [notV('dAm'), notV('dSas')], junctions: ['AND'] },
+      { output: 'MouvAm', coilType: 'reset', terms: [notV('nAm')], junctions: [] },
+      { output: 'MouvAm', coilType: 'set', terms: [v('dAm'), v('nAm'), notV('alarme')], junctions: ['AND', 'AND'] },
+      { output: 'MouvAm', coilType: 'set', terms: [v('dSas'), v('Rmon'), v('nAm'), notV('alarme')], junctions: ['AND', 'AND', 'AND'] },
+      { output: 'MouvAv', coilType: 'reset', terms: [{ type: 'edge', varId: 'dAv', dir: 'falling' }], junctions: [] },
+      { output: 'MouvAv', coilType: 'reset', terms: [notV('dAv'), notV('dSas')], junctions: ['AND'] },
+      { output: 'MouvAv', coilType: 'reset', terms: [notV('nAv')], junctions: [] },
+      { output: 'MouvAv', coilType: 'set', terms: [v('dAv'), v('nAv'), notV('alarme')], junctions: ['AND', 'AND'] },
+      { output: 'MouvAv', coilType: 'set', terms: [v('dSas'), v('Rdesc'), v('nAv'), notV('alarme')], junctions: ['AND', 'AND', 'AND'] },
+      // Sorties.
+      { output: 'mPmon', coilType: 'coil', terms: [v('MouvAm'), notV('bArret')], junctions: ['AND'] },
+      { output: 'mPval', coilType: 'coil', terms: [v('MouvAv'), notV('bArret')], junctions: ['AND'] },
+      { output: 'vRem', coilType: 'coil', terms: [v('Mrem'), notV('bArret')], junctions: ['AND'] },
+      { output: 'vVid', coilType: 'coil', terms: [v('Mvid'), notV('bArret')], junctions: ['AND'] },
+      { output: 'fVam', coilType: 'coil', terms: [v('mPmon')], junctions: [] },
+      { output: 'fVav', coilType: 'coil', terms: [v('mPval')], junctions: [] },
+      // Defauts : incoherence N-AM/N-AV ; porte commandee mais jamais ouverte (TON 2 s).
+      { output: 'alarme', coilType: 'set', terms: [tq('t1'), tq('t2'), v('nAm'), v('nAv')], junctions: ['OR', 'OR', 'AND'] },
+      { output: 'alarme', coilType: 'reset', terms: [v('bArret')], junctions: [] },
+    ],
+  };
+}
+
 export function exampleLadder(machine: MachineId): LadderProgram {
   if (machine === 'cuve') return cuveLadder();
   if (machine === 'convoyeur') return convoyeurLadder();
   if (machine === 'robot') return robotLadder();
   if (machine === 'pniveau') return pniveauLadder();
+  if (machine === 'ecluse') return ecluseLadder();
   return feuxLadder();
 }
 
@@ -445,10 +584,26 @@ function pniveauBlocks(): BlocksProgram {
   return p;
 }
 
+function ecluseBlocks(): BlocksProgram {
+  // Sans mémoire : seul le transit descendant (approche amont) est traité.
+  // La montée exigerait de memoriser le côté d’entrée (Grafcet et Ladder le font).
+  const p = emptyBlocks();
+  p.rules = [
+    { when: [v('dAm'), notV('nAm'), notV('bArret')], then: ['vRem'] },
+    { when: [v('dAm'), v('nAm'), notV('bArret')], then: ['mPmon', 'fVam'] },
+    { when: [v('dSas'), notV('dAm'), notV('nAv'), notV('bArret')], then: ['vVid'] },
+    { when: [v('dSas'), v('nAv')], then: ['mPval', 'fVav'] },
+    { when: [v('nAm'), v('nAv')], then: ['alarme'] },
+    { when: [v('bArret')], then: ['alarme'] },
+  ];
+  return p;
+}
+
 export function exampleBlocks(machine: MachineId): BlocksProgram {
   if (machine === 'cuve') return cuveBlocks();
   if (machine === 'convoyeur') return convoyeurBlocks();
   if (machine === 'robot') return robotBlocks();
   if (machine === 'pniveau') return pniveauBlocks();
+  if (machine === 'ecluse') return ecluseBlocks();
   return feuxBlocks();
 }

@@ -25,6 +25,7 @@ import {
   type MachineState,
   type PNiveauState,
   type RobotState,
+  type EcluseState,
 } from '../system/machines';
 import { INCIDENTS } from '../system/incidents';
 import { TankView } from '../components/TankView';
@@ -32,6 +33,7 @@ import { FeuxView } from './FeuxView';
 import { ConveyorView } from './ConveyorView';
 import { RobotView } from './RobotView';
 import { PNiveauView } from './PNiveauView';
+import { EcluseView } from './EcluseView';
 import { Card, Chip, Pill, SectionTitle } from '../components/ui';
 
 const PRESS_TICKS = 6;
@@ -56,6 +58,10 @@ function incidentOk(
     return off('bombe') && on('voyRouge');
   }
   if (machine === 'pniveau') return on('alarme');
+  if (machine === 'ecluse') {
+    if (incident === 'fNiveau') return off('mPmon') && off('mPval') && on('alarme');
+    return on('alarme');
+  }
   return false;
 }
 
@@ -115,6 +121,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       if (incident === 'fHaut') vars.sHaut = true;
       if (incident === 'fCapteur' && machine === 'robot') vars.pDroite = true;
       if (incident === 'fCable' && machine === 'cuve') vars.bAru = false;
+      if (incident === 'fNiveau' && machine === 'ecluse') vars.nAm = true;
       if (incident === 'fCapteur' && machine === 'pniveau') vars.dEntree = true;
       const run = runProgram(mode, program, vars, interpRef.current, {
         level: numericOf(machine, sysRef.current),
@@ -127,6 +134,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       if (incident === 'fPous') outputs = { ...outputs, poussoir: true };
       if (incident === 'fBombe') outputs = { ...outputs, bombe: true };
       if (incident === 'fBarriere') outputs = { ...outputs, barriere: false };
+      if (incident === 'fPorte') outputs = { ...outputs, mPval: false };
       lastActualRef.current = outputs;
       interpRef.current = run.state;
       const nextSys = stepSystem(machine, sysRef.current, outputs, vars);
@@ -216,6 +224,9 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
             />
           ) : null}
           {machine === 'feux' ? <FeuxView vars={view.outputs} /> : null}
+          {machine === 'ecluse' ? (
+            <EcluseView sys={view.sys as EcluseState} outputs={view.outputs} />
+          ) : null}
           {machine === 'convoyeur' ? (
             <ConveyorView sys={view.sys as ConvoyeurState} outputs={view.outputs} />
           ) : null}

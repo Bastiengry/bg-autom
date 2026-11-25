@@ -504,5 +504,113 @@ runCuveAruLadder();
 runCuveAruGrafcet();
 runCuveBlocksAru();
 
+
+function tickEcluse(sys, interp, mode, program, vars, forceOut) {
+  const inputs = { ...machineInputs('ecluse', sys, {}), ...vars };
+  const res = runProgram(mode, program, inputs, interp, { level: numericOf('ecluse', sys) });
+  const outputs = forceOut ? { ...res.outputs, ...forceOut } : res.outputs;
+  return { sys: stepSystem('ecluse', sys, outputs, inputs), interp: res.state, outputs };
+}
+
+function runEcluseGrafcet() {
+  const program = exampleGrafcet('ecluse');
+  let sys = initSystem('ecluse');
+  let interp = initInterpState();
+  const vars = {};
+  for (let i = 0; i < 1000; i++) {
+    vars.bMarche = i < 6;
+    ({ sys, interp } = tick('ecluse', vars, sys, interp, 'grafcet', program));
+  }
+  assert(sys.kind === 'ecluse');
+  assert(sys.transits >= 3, `grafcet ecluse: 3 transits attendus, obtenu ${sys.transits}`);
+  assert(sys.danger === 0, `grafcet ecluse: 0 fausse man\u0153uvre attendue, obtenu ${sys.danger}`);
+  console.log(`\u2713 Grafcet écluse : ${sys.transits} transits (descente + montée alternés), 0 danger`);
+}
+
+function runEcluseLadder() {
+  const program = exampleLadder('ecluse');
+  let sys = initSystem('ecluse');
+  let interp = initInterpState();
+  const vars = {};
+  for (let i = 0; i < 1000; i++) {
+    vars.bMarche = i < 6;
+    ({ sys, interp } = tick('ecluse', vars, sys, interp, 'ladder', program));
+  }
+  assert(sys.kind === 'ecluse');
+  assert(sys.transits >= 3, `ladder ecluse: 3 transits attendus, obtenu ${sys.transits}`);
+  assert(sys.danger === 0, `ladder ecluse: 0 fausse man\u0153uvre attendue, obtenu ${sys.danger}`);
+  console.log(`\u2713 Ladder écluse : ${sys.transits} transits via relais R-DESC / R-MONT, 0 danger`);
+}
+
+function runEcluseBlocks() {
+  const program = exampleBlocks('ecluse');
+  let sys = initSystem('ecluse');
+  let interp = initInterpState();
+  const vars = { bArret: false };
+  for (let i = 0; i < 300; i++) {
+    ({ sys, interp } = tick('ecluse', vars, sys, interp, 'blocks', program));
+  }
+  assert(sys.kind === 'ecluse');
+  assert(sys.transits === 1, `blocks ecluse: 1 seul transit attendu, obtenu ${sys.transits}`);
+  assert(sys.danger === 0, `blocks ecluse: 0 danger attendu`);
+  console.log('\u2713 Blocs écluse : descente complète uniquement (pas de mémoire), bateau suivant en attente, 0 danger');
+}
+
+function runEcluseIncidentNiveau() {
+  const program = exampleBlocks('ecluse');
+  let sys = initSystem('ecluse');
+  let interp = initInterpState();
+  let alarme = false;
+  for (let i = 0; i < 10; i++) {
+    const r = tick('ecluse', { nAm: true, bArret: false }, sys, interp, 'blocks', program);
+    sys = r.sys;
+    interp = r.interp;
+    if (i > 2) {
+      assert(r.outputs.alarme, `ecluse incident N-AM: alarme attendue (cycle ${i}), out ${JSON.stringify(r.outputs)}`);
+      assert(!r.outputs.mPmon && !r.outputs.mPval, 'ecluse incident N-AM: moteurs de portes coupés attendus');
+      alarme = true;
+    }
+  }
+  assert(alarme, 'ecluse incident N-AM: alarme jamais observée');
+  console.log('\u2713 Incident écluse : N-AM collé (incohérence N-AM/N-AV) \u2192 portes coupées + ALARME');
+}
+
+function runEcluseIncidentPorteBloquee() {
+  const program = exampleLadder('ecluse');
+  let sys = initSystem('ecluse');
+  let interp = initInterpState();
+  const vars = { bMarche: false, bArret: false };
+  let commanded = false;
+  let bloque = false;
+  let ticksCmd = 0;
+  for (let i = 0; i < 600 && !commanded; i++) {
+    const r = tickEcluse(sys, interp, 'ladder', program, vars, null);
+    sys = r.sys;
+    interp = r.interp;
+    if (r.outputs.mPval) commanded = true;
+  }
+  assert(commanded, 'ecluse incident porte: M-P-AV jamais commandé (le programme ne tourne pas)');
+  // Puis la porte aval est bloque : le moteur réel ne bouge plus (mPval forcé à false),
+  // mais le programme continue de la commander. La vraie porte n'atteint jamais P-AV-Ouv,
+  // le TON t2 (2 s) s'accumule et l'ALARME doit se lever.
+  for (let i = 0; i < 60 && !bloque; i++) {
+    const r2 = tickEcluse(sys, interp, 'ladder', program, vars, { mPval: false });
+    sys = r2.sys;
+    interp = r2.interp;
+    ticksCmd++;
+    if (r2.outputs.alarme) bloque = true;
+  }
+  assert(bloque, `ecluse incident porte: alarme jamais déclenchée (${ticksCmd} ticks de porte bloquée)`);
+  assert(sys.kind === 'ecluse');
+  console.log('\u2713 Incident écluse : porte aval bloquée commandée (TON 2 s) \u2192 ALARME');
+}
+
+runEcluseGrafcet();
+runEcluseLadder();
+runEcluseBlocks();
+runEcluseIncidentNiveau();
+runEcluseIncidentPorteBloquee();
+
 console.log('Tous les tests moteur passent.');
+
 

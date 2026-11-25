@@ -1,8 +1,9 @@
 # BG Autom — Labo d'automatisme (React Native / Expo)
 
 Application mobile d'apprentissage de l'automatisme : l'utilisateur **programme l'automate**
-et la machine exécute son programme en temps réel. 5 machines : remplissage de cuve,
-feux de carrefour, **tri sur convoyeur**, **robot de peinture**, **passage à niveau**.
+et la machine exécute son programme en temps réel. 6 machines : remplissage de cuve,
+feux de carrefour, **tri sur convoyeur**, **robot de peinture**, **passage à niveau**,
+**🚤 écluse** (exercice guidé).
 
 ## Les machines
 
@@ -61,6 +62,45 @@ compte les **passages** et les **dangers** (train sur le passage, barrière ouve
 
 **Mission** : 2 trains franchis sans incident, barrière rouverte après chaque passage.
 
+### 🚤 Écluse
+
+Une écluse relie deux biefs d'eau de niveau différent : le bateau entre dans le **sas** par la porte
+amont ou aval (détecteurs `D-DET AM` / `D-DET AV`, présence `D-SAS`). Les portes `MOTEUR P-AM` /
+`MOTEUR P-AV` ne doivent **jamais s'ouvrir hors égalisation de niveau** (`N-AM` / `N-AV`, fins de
+course `P-AM-Ouv/Ferm`, `P-AV-Ouv/Ferm`) : sinon la simulation compte une **manœuvre DANGEREUSE**.
+Portes fermées, le sas est étanche : les vannes `VANNE REMP` / `VANNE VID` n'ont d'effet que dans
+cette configuration. Les relais internes `R-DESC` / `R-MONT` mémorisent le côté d'entrée du bateau,
+`M-REM` / `M-VID` / `M-OUV-AM` / `M-OUV-AV` pilotent les phases ; `FEU V AM` / `FEU V AV` signalent
+les portes ouvertes, `ALARME` les défauts.
+
+**Mission** : faire franchir les bateaux dans les **deux sens** (3 éclusages), sans aucune porte
+commandée hors égalisation (0 danger), et tout remettre au repos (portes fermées) entre deux bateaux.
+
+## Exercice guidé : l'écluse
+
+L'intro de la machine déroule le cycle descendant **pas à pas** :
+
+1. un bateau se présente à l'**amont** (`D-DET AM`) → ouvrir la `VANNE REMP` pour égaliser le sas
+   avec le bief amont, jusqu'à `N-AM` ;
+2. niveaux égalisés → ouvrir la porte amont (`MOTEUR P-AM`), feu `FEU V AM` ;
+3. le bateau entre dans le sas (`D-SAS`) → refermer, et **mémoriser le côté d'entrée** (`R-DESC`) :
+   c'est le cœur pédagogique du programme, qui détermine le sens du transit ;
+4. portes fermées, sas étanche → ouvrir la `VANNE VID` jusqu'à `N-AV` ;
+5. niveau bas → ouvrir la porte aval (`MOTEUR P-AV`), feu `FEU V AV` ;
+6. bateau sorti → refermer et revenir au repos ; le bateau suivant arrive de l'**autre côté** :
+   le cycle est le **miroir** (vidanger d'abord, `R-MONT`, sortie amont) et les deux sens se
+   **alternent** automatiquement.
+
+Pièges par la physique : toute porte commandée hors égalisation incrémente **DANGER** ; les vannes
+sont sans effet si une porte n'est pas fermée (étanchéité). Le mode **Blocs** (sans mémoire) ne
+permet que la descente — la montée exige relais (Ladder) ou étapes (Grafcet) : l'exemple Blocs le
+documente comme limite volontaire.
+
+Côté incidents : `N-AM collé` (capteur devant être physiquement impossible en même temps que
+`N-AV` : détecter l'incohérence, couper moteurs et vannes, `ALARME` ; démontrable dans les 3
+langages) et `porte aval bloquée` (commande sans retour `P-AV-Ouv` : TON 2 s → `ALARME`,
+démonstration Ladder).
+
 ## Trois langages de programmation
 
 1. **Blocs simples** (débutant) : règles `SI condition ALORS sorties`, réévaluées à chaque cycle, sans mémoire.
@@ -99,13 +139,12 @@ L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fe
 - **Arrêt d'urgence** : coupe immédiatement toutes les sorties ; cuve : AU à contact NF (`bAru`) avec boutons « AU » et « Réarmer AU » (verrouillage jusqu'à l'acquit MARCHE)
 - **Missions** : objectifs de validation (cycles complets, feux sans conflit…) cochés en temps réel
 - **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
-- Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée, lampes feux, tapis + colis, chariot de peinture, barrière de passage à niveau)
+- Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée, lampes feux, tapis + colis, chariot de peinture, barrière de passage à niveau, écluse 5 bassins)
 
 ### 🛡️ Incidents (pannes & attaques)
 
-Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage d'un
-Forçage de capteur (BH collé à 1, capteur P-D collé, capteur D-1 brouillé), actionneurs bloqués
-(vanne neutralisée, moteur tapis bloqué, poussoir forcé sorti, bombe forcée ouverte, barrière bloquée
+Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage de capteur (BH collé à 1, capteur P-D collé, capteur N-AM collé (incohérence N-AM/N-AV écluse), capteur D-1 brouillé), actionneurs bloqués
+(vanne neutralisée, moteur tapis bloqué, poussoir forcé sorti, bombe forcée ouverte, barrière bloquée, porte d'écluse bloquée
 haute), coupure du câble de l'AU à contact NF (indistinguable d'un appui), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
 les missions incidents sont pensées pour Grafcet/Ladder (tempo TON, relais M mémoire). Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
 comparaison commande / retour lampe L1-L2) et **réagir en état sûr** (voyant d'alarme, tout
@@ -125,7 +164,7 @@ src/
   programs/       # examples.ts : programmes exemples par machine
   screens/        # GrafcetEditor, LadderEditor, BlocksEditor, SimulationScreen
   state/          # programs.tsx : persistance AsyncStorage (contexte React)
-  system/         # machines.ts : physique des 5 machines, registres de variables, objectifs
+  system/         # machines.ts : physique des 6 machines, registres de variables, objectifs
   types.ts        # types partagés (Condition union, programmes, machines)
 tests/            # tests moteur (npm test)
 ```
@@ -137,7 +176,7 @@ npm install
 npm start          # Expo dev server
 npx tsc --noEmit   # typecheck
 npx expo lint      # lint
-npm test           # tests moteur (cuve/feux × Grafcet/Ladder/Blocs)
+npm test           # tests moteur (6 machines × Grafcet/Ladder/Blocs + incidents)
 ```
 
 ### APK Android
