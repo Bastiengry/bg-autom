@@ -605,11 +605,74 @@ function runEcluseIncidentPorteBloquee() {
   console.log('\u2713 Incident écluse : porte aval bloquée commandée (TON 2 s) \u2192 ALARME');
 }
 
+function runGrafcetFrontMontant() {
+  const program = {
+    nodes: [
+      { transition: [{ type: 'edge', varId: 'X', dir: 'rising' }], alt: [], actions: [], forks: [], waitsFor: [], afterSeconds: null },
+      { transition: [{ type: 'var', varId: 'X', negated: true }], alt: [], actions: [{ varId: 'Y', mode: 'level' }], forks: [], waitsFor: [], afterSeconds: null },
+    ],
+    loopTo: 0,
+  };
+  let interp = initInterpState();
+  const yTrail = [];
+  for (let i = 0; i < 8; i++) {
+    const vars = { X: i >= 3 && i <= 5 };
+    const r = runProgram('grafcet', program, vars, interp, {});
+    interp = r.state;
+    yTrail.push(!!r.outputs.Y);
+  }
+  assert(!yTrail[0] && !yTrail[1] && !yTrail[2], 'grafcet front montant: etape 1 avant le front est indesirable');
+  assert(yTrail[3] && yTrail[4] && yTrail[5], 'grafcet front montant: etape 1 active pendant X haut');
+  assert(!yTrail[6] && !yTrail[7] && interp.active[0] === 0, 'grafcet front montant: retour etape 0 quand X retombe');
+  console.log('\u2713 Grafcet front montant : la transition ne passe qu\u2019une fois (front \u2191), pas\u00e0-pas exact');
+}
+
+function runGrafcetFrontDescendantTrace() {
+  // front descendant : X haut (ticks 0-2) puis chute au tick 3
+  const program = {
+    nodes: [
+      { transition: [{ type: 'edge', varId: 'X', dir: 'falling' }], alt: [], actions: [], forks: [], waitsFor: [], afterSeconds: null },
+      { transition: [{ type: 'edge', varId: 'X', dir: 'rising' }], alt: [], actions: [{ varId: 'Y', mode: 'level' }], forks: [], waitsFor: [], afterSeconds: null },
+    ],
+    loopTo: 0,
+  };
+  let interp = initInterpState();
+  const yTrail = [];
+  for (let i = 0; i < 7; i++) {
+    const vars = { X: i < 3 || i === 6 };
+    const r = runProgram('grafcet', program, vars, interp, {});
+    interp = r.state;
+    yTrail.push(!!r.outputs.Y);
+  }
+  assert(!yTrail[0] && !yTrail[1] && !yTrail[2], 'front \u2193 : rien tant que X reste haut');
+  assert(yTrail[3] && yTrail[4] && yTrail[5], 'front \u2193 : Y s\u2019allume exactement au tick de chute de X, jusqu\u2019au front \u2191');
+  assert(!yTrail[6], 'front \u2193 : retour \u00e0 l\u2019\u00e9tape 0 au front \u2191 de X');
+  console.log('\u2713 Grafcet front descendant : impulsion exacte \u00e0 la chute de X (avant : jamais vraie)');
+}
+
+function runBlocsFrontMontant() {
+  const program = { rules: [{ when: [{ type: 'edge', varId: 'X', dir: 'rising' }], then: ['Y'] }] };
+  let interp = initInterpState();
+  const yTrail = [];
+  for (let i = 0; i < 8; i++) {
+    const r = runProgram('blocks', program, { X: i % 4 === 2 }, interp, {});
+    interp = r.state;
+    yTrail.push(!!r.outputs.Y);
+  }
+  // X vrai seulement a i = 2 et 6 : front montant a ces deux ticks uniquement
+  const attendu = [false, false, true, false, false, false, true, false];
+  assert(JSON.stringify(yTrail) === JSON.stringify(attendu), `blocs front montant: attendu ${attendu.join()}, obtenu ${yTrail.join()}`);
+  console.log('\u2713 Blocs front montant : Y ne s\u2019allume qu\u2019au front \u2191 (avant : jamais)');
+}
+
 runEcluseGrafcet();
 runEcluseLadder();
 runEcluseBlocks();
 runEcluseIncidentNiveau();
 runEcluseIncidentPorteBloquee();
+runGrafcetFrontMontant();
+runGrafcetFrontDescendantTrace();
+runBlocsFrontMontant();
 
 console.log('Tous les tests moteur passent.');
 

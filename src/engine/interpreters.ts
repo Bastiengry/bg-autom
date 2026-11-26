@@ -118,6 +118,9 @@ function runGrafcet(
 ): EvalResult {
   const nodes = program.nodes;
   if (nodes.length === 0) return { outputs: { ...state.mem }, state };
+  // Instantane de ce scan (entrees + mem des Set/Reset) : sert a l'evaluation
+  // ET devient l'historique du scan suivant (conditions `front`).
+  const vars2 = varsSnapshot(vars, state.mem);
   const out: Record<string, boolean> = {};
   const active = state.active;
   const valid = active.filter((i) => i >= 0 && i < nodes.length);
@@ -130,13 +133,13 @@ function runGrafcet(
   for (const i of starting) {
     const node = nodes[i];
     const mainTrue =
-      evalAll(node.transition, vars, state2, ctx) &&
+      evalAll(node.transition, vars2, state2, ctx) &&
       (node.afterSeconds === null || state.stepMs >= node.afterSeconds * 1000) &&
       node.waitsFor.every((w) => starting.includes(w));
     let firedAlt: { goto: number } | null = null;
     if (!mainTrue) {
       for (const a of node.alt) {
-        if (evalAll(a.condition, vars, state2, ctx)) {
+        if (evalAll(a.condition, vars2, state2, ctx)) {
           firedAlt = a;
           break;
         }
@@ -185,7 +188,7 @@ function runGrafcet(
       ? state.stepMs + TICK_MS
       : 0;
 
-  return { outputs: outputsAll, state: { ...state, active: newActive, mem: mem3, stepMs: nextStepMs } };
+  return { outputs: outputsAll, state: { ...state, active: newActive, mem: mem3, stepMs: nextStepMs, prev: vars2 } };
 }
 
 function runLadder(
@@ -238,7 +241,7 @@ function runBlocks(program: BlocksProgram, vars: Record<string, boolean>, state:
       for (const a of rule.then) out[a] = true;
     }
   }
-  return { outputs: out, state };
+  return { outputs: out, state: { ...state, prev: { ...vars } } };
 }
 
 export function runProgram(

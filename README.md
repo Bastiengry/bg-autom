@@ -104,7 +104,9 @@ démonstration Ladder).
 ## Trois langages de programmation
 
 1. **Blocs simples** (débutant) : règles `SI condition ALORS sorties`, réévaluées à chaque cycle, sans mémoire.
-2. **Grafcet** (EN 60848) : étapes (actions niveau / Set / Reset), transitions multi-conditions, tempo d'étape,
+2. **Grafcet** (EN 60848) : étapes (actions niveau / Set / Reset), transitions multi-conditions
+   (entrées, relais internes posés par Set/Reset, **fronts ↑/↓** — impulsion exacte à la variation,
+   pas une confirmation permanente), tempo d'étape,
    **divergence OU / sauts** (avec condition de branchement), **divergence ET** (fourches `forks` / `waitsFor`),
    retour de séquence configurable (`loopTo`).
 3. **Ladder (LD)** : contacts (÷/NON), junctions ET/OU, bobines `( ) / (S) / (R)`,
@@ -124,6 +126,7 @@ L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fe
 
 1. **Détecter l'ouverture** : tout programme doit couper VANNE R et POMPE V dès `bAru = false`,
    même au milieu d'un cycle. En Grafcet, branche alternative `NON bAru` vers l'étape initiale.
+   Un **front** est l'outil du garant vis-à-vis des événements brefs : il ne dure qu'un cycle automate.
 2. **Couper en sécurité** : en Ladder, contact `bAru` (positif) en série dans chaque rung + bobine
    VOY. R sur `NON bAru`. Un incident dédié (coupure de câble AU) simule l'appui **sans** action
    sur le bouton : un câble NF coupé se comporte exactement comme un appui, c'est toute la
