@@ -74,7 +74,9 @@ export default function ConditionListEditor({
   };
 
   const frontItems = (): PickerItem[] =>
-    contactItems(machine).filter((v) => MACHINES[machine].vars.find((d) => d.id === v.id)?.kind === 'input');
+    MACHINES[machine].vars
+      .filter((v) => v.kind === 'input')
+      .map((v) => ({ id: `var:${v.id}`, label: v.label, detail: v.detail }));
 
   return (
     <View style={styles.wrap}>

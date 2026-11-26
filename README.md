@@ -127,6 +127,9 @@ L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fe
 1. **Détecter l'ouverture** : tout programme doit couper VANNE R et POMPE V dès `bAru = false`,
    même au milieu d'un cycle. En Grafcet, branche alternative `NON bAru` vers l'étape initiale.
    Un **front** est l'outil du garant vis-à-vis des événements brefs : il ne dure qu'un cycle automate.
+   L'éditeur propose **« + Front »** sur toute entrée de la machine (front ↑ par défaut,
+   commutable ↑/↓ après ajout avec le bouton **↑/↓**). Fiable dans les trois langages depuis v0.3.4 ;
+   menu de sélection des entrées corrigé en v0.3.5 (liste vide auparavant en v0.3.4).
 2. **Couper en sécurité** : en Ladder, contact `bAru` (positif) en série dans chaque rung + bobine
    VOY. R sur `NON bAru`. Un incident dédié (coupure de câble AU) simule l'appui **sans** action
    sur le bouton : un câble NF coupé se comporte exactement comme un appui, c'est toute la
@@ -193,5 +196,3 @@ L'APK signé le plus récent est committé dans `apk/` (voir les [Releases GitHu
 
 - Le mode Blocs est sans mémoire (choix pédagogique documenté dans l'UI).
 - Pas de build iOS dans ce dépôt ; interface en français uniquement.
-EOF
-npx tsc --noEmit 2>&1 | head -5; npx expo lint 2>&1 | tail -4; npm test 2>&1 | grep -E "✓|passent"
