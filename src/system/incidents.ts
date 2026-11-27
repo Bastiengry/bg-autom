@@ -34,6 +34,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
   ],
   feux: [
     {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Arrêt sûr immédiat : les deux voies au rouge (R1 ET R2), aucun vert ni orange.',
+    },
+    {
       id: 'fV1',
       label: 'Forçage feu V1',
       detail: 'Le feu vert de la voie 1 est forcé allumé (sortie piratée, commande contournée).',
@@ -49,6 +56,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
     },
   ],
   convoyeur: [
+    {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Arrêt sûr immédiat : MOTEUR et POUSSOIR coupés, VOY. R allumé.',
+    },
     {
       id: 'fMoteur',
       label: 'Moteur tapis bloqué',
@@ -66,6 +80,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
   ],
   robot: [
     {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Arrêt sûr immédiat : BOMBE coupée, chariot à l’arrêt, VOY. R allumé.',
+    },
+    {
       id: 'fBombe',
       label: 'Bombe forcée ouverte',
       detail: 'La bombe vaporise en permanence, même sans commande (fuite ou piratage de la sortie).',
@@ -82,6 +103,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
   ],
   pniveau: [
     {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Réaction sûre : BARRIÈRE maintenue fermée et FEUX allumés tant que le défaut dure.',
+    },
+    {
       id: 'fBarriere',
       label: 'Barrière bloquée haute',
       detail: 'La barrière ne descend plus, même commandée (verrou mécanique ou sortie neutralisée). Un train arrive !',
@@ -97,6 +125,13 @@ export const INCIDENTS: Record<MachineId, Incident[]> = {
     },
   ],
   ecluse: [
+    {
+      id: 'fCable',
+      label: 'Coupure câble AU',
+      detail: 'Le câble du bouton d’arrêt d’urgence NF est coupé (ou l’I/O forcé à 0) : l’automate voit le contact ouvert sans appui.',
+      hint: 'Contact NF ouvert = AU actionné, même traitement quelle que soit la cause. Couper et laisser verrouillé jusqu’au réarmement.',
+      mission: 'Réaction sûre : moteurs de portes (P-AM, P-AV) et vannes coupés — les portes se referment d’elles-mêmes.',
+    },
     {
       id: 'fNiveau',
       label: 'Capteur N-AM collé à 1',

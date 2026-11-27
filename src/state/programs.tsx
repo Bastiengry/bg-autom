@@ -8,31 +8,10 @@ import type {
   MachineId,
   ProgramMode,
 } from '../types';
-import { MACHINE_IDS, emptyProgram } from '../types';
+import { emptyProgram } from '../types';
+import { STORAGE_KEY, blankMap, mergeStored, serialize, type ProgramsMap } from './storage';
 
-const STORAGE_KEY = 'bgautom.programs.v3';
-
-function sanitizeBlocks(p: unknown): BlocksProgram {
-  const prog = p as BlocksProgram;
-  return {
-    rules: (prog?.rules ?? []).map((r) => ({
-      when: Array.isArray(r?.when) ? r.when : r?.when ? [r.when] : [],
-      then: Array.isArray(r?.then) ? r.then : [],
-    })),
-  };
-}
-
-export type ProgramsMap = Record<ProgramMode, Record<MachineId, AnyProgram>>;
-
-function blankMap(): ProgramsMap {
-  const map = { grafcet: {}, ladder: {}, blocks: {} } as unknown as ProgramsMap;
-  for (const m of MACHINE_IDS) {
-    map.grafcet[m] = emptyProgram('grafcet');
-    map.ladder[m] = emptyProgram('ladder');
-    map.blocks[m] = emptyProgram('blocks');
-  }
-  return map;
-}
+export type { ProgramsMap } from './storage';
 
 interface ProgramsContextValue {
   loaded: boolean;
@@ -50,18 +29,7 @@ export function ProgramsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<ProgramsMap>;
-          const blocks: Partial<Record<MachineId, BlocksProgram>> = {};
-          for (const m of MACHINE_IDS) {
-            if (parsed.blocks?.[m]) blocks[m] = sanitizeBlocks(parsed.blocks[m]);
-          }
-          setMap((prev) => ({
-            grafcet: { ...prev.grafcet, ...(parsed.grafcet ?? {}) },
-            ladder: { ...prev.ladder, ...(parsed.ladder ?? {}) },
-            blocks: { ...prev.blocks, ...blocks },
-          }));
-        }
+        setMap((prev) => mergeStored(raw, prev));
       })
       .catch(() => undefined)
       .finally(() => setLoaded(true));
@@ -69,7 +37,7 @@ export function ProgramsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map)).catch(() => undefined);
+    AsyncStorage.setItem(STORAGE_KEY, serialize(map)).catch(() => undefined);
   }, [map, loaded]);
 
   const get = useCallback(

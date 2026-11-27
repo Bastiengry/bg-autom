@@ -118,14 +118,18 @@ et réagissent au bouton **ARRÊT** : en Grafcet, chaque étape a une branche al
 l'étape initiale (tout s'arrête, MARCHE relance) ; en Ladder cuve, l'ARRÊT coupe vanne et pompe ;
 en Ladder feux, un relais `MSTOP` passe les deux voies au rouge jusqu'au rappui MARCHE.
 
-## Exercice : arrêt d'urgence à contact NF (cuve)
+## Exercice : arrêt d'urgence à contact NF (les 6 machines)
 
-L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fermé (NF)** :
+L'entrée `bAru` de **chaque machine** est câblée en **contact normalement fermé (NF)** :
 `bAru = true` circuit sain, `bAru = false` bouton AU enfoncé **ou** câble coupé. Logique inversée
-à manipuler directivement dans les trois langages :
+à manipuler directement dans les trois langages, avec une réaction adaptée à chaque procédé :
+cuve → vanne et pompe coupées ; feux → les deux voies au rouge ; convoyeur → moteur et
+poussoir coupés, VOY. R ; robot → chariot et bombe coupés, VOY. R ; passage à niveau → barrière
+**maintenue fermée** + feux ; écluse → moteurs de portes et vannes coupés.
 
-1. **Détecter l'ouverture** : tout programme doit couper VANNE R et POMPE V dès `bAru = false`,
-   même au milieu d'un cycle. En Grafcet, branche alternative `NON bAru` vers l'étape initiale.
+1. **Détecter l'ouverture** : tout programme doit basculer en état sûr dès `bAru = false`,
+   même au milieu d'un cycle. En Grafcet, branche alternative `NON bAru` vers l'étape initiale
+   (ou vers l'étape de confinement pour le passage à niveau : barrière fermée + feux).
    Un **front** est l'outil du garant vis-à-vis des événements brefs : il ne dure qu'un cycle automate.
    L'éditeur propose **« + Front »** sur toute entrée de la machine (front ↑ par défaut,
    commutable ↑/↓ après ajout avec le bouton **↑/↓**). Fiable dans les trois langages depuis v0.3.4 ;
@@ -138,11 +142,24 @@ L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fe
    Les exemples exigent une nouvelle impulsion MARCHE (l'interface simule l'acquit) ; les missions
    associées valident coupure et redémarrage verrouillé.
 
+### Catégories d'arrêt (IEC 60204-1)
+
+- **Catégorie 0 — arrêt immédiat** : l'AU (`bAru`) partout. Coupure des sorties dès le scan
+  suivant ; en Ladder cuve, l'ARRÊT bouton coupe aussi vanne et pompe immédiatement.
+- **Catégorie 1 — arrêt contrôlé** : le Grafcet cuve traite le bouton **ARRÊT** ainsi. Un
+  **front montant** de `bArret` mémorise la demande (relais `M1`) et la machine **termine la phase
+  en cours** : la vanne finit de remplir jusqu'à BH, puis tout reste en attente ; un nouveau MARCHE
+  relance le cycle. La vidange ne démarre jamais pendant l'arrêt demandé. En Ladder cuve, le même
+  ARRÊT reste une coupure immédiate (catégorie 0) — même demande, deux traitements : le Grafcet
+  mémorise, le Ladder coupe. De quoi comparer les deux philosophies sur une même machine.
+- Les feux de carrefour illustrent l'état sûr « au repos » : étape initiale = les deux voies
+  au rouge, MARCHE n'étant effective que si l'AU est sain.
+
 ## Simulation
 
 - Horloge automate : tick de 100 ms, vitesse **0,5× / 1× / 2× / 5×**
 - **Pas-à-pas** : pause puis « ▶︎ 1 cycle » pour avancer d'un seul cycle automate
-- **Arrêt d'urgence** : coupe immédiatement toutes les sorties ; cuve : AU à contact NF (`bAru`) avec boutons « AU » et « Réarmer AU » (verrouillage jusqu'à l'acquit MARCHE)
+- **Arrêt d'urgence** : disponible sur les **6 machines** — AU à contact NF (`bAru`) avec boutons « AU » et « Réarmer AU » (verrouillage jusqu'à l'acquit MARCHE), plus l'incident « Coupure câble AU » indistinguable d'un appui
 - **Missions** : objectifs de validation (cycles complets, feux sans conflit…) cochés en temps réel
 - **Chronogramme** : historique des 120 derniers cycles (entrées / sorties, 100 ms par case)
 - Boutons poussoirs à impulsion, et visualisation dédiée par machine (cuve animée, lampes feux, tapis + colis, chariot de peinture, barrière de passage à niveau, écluse 5 bassins)
@@ -151,7 +168,7 @@ L'entrée `bAru` du remplissage de cuve est câblée en **contact normalement fe
 
 Chaque machine propose des scénarios de « cyber-OT / sécurité fonctionnelle » : forçage de capteur (BH collé à 1, capteur P-D collé, capteur N-AM collé (incohérence N-AM/N-AV écluse), capteur D-1 brouillé), actionneurs bloqués
 (vanne neutralisée, moteur tapis bloqué, poussoir forcé sorti, bombe forcée ouverte, barrière bloquée, porte d'écluse bloquée
-haute), coupure du câble de l'AU à contact NF (indistinguable d'un appui), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
+haute), coupure du câble de l'AU à contact NF (indistinguable d'un appui, présent sur les 6 machines), sortie piratée (feu vert) ou feu mort. Le mode Blocs ne dispose pas de temporisation :
 les missions incidents sont pensées pour Grafcet/Ladder (tempo TON, relais M mémoire). Mission de chaque incident : **détecter** l'anomalie (incohérence capteur,
 comparaison commande / retour lampe L1-L2) et **réagir en état sûr** (voyant d'alarme, tout
 rouge, arrêt process). La mission est validée en temps réel. La partie réseau (Modbus, pare-feux,

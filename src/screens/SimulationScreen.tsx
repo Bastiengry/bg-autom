@@ -57,9 +57,13 @@ function incidentOk(
     if (incident === 'fBombe') return off('bombe') && off('avancer') && off('reculer') && on('voyRouge');
     return off('bombe') && on('voyRouge');
   }
-  if (machine === 'pniveau') return on('alarme');
+  if (machine === 'pniveau') {
+    if (incident === 'fCable') return on('barriere') && on('feux');
+    return on('alarme');
+  }
   if (machine === 'ecluse') {
     if (incident === 'fNiveau') return off('mPmon') && off('mPval') && on('alarme');
+    if (incident === 'fCable') return off('mPmon') && off('mPval') && off('vRem') && off('vVid');
     return on('alarme');
   }
   return false;
@@ -107,7 +111,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
     const vars: Record<string, boolean> = {};
     for (const v of def.vars) if (v.kind === 'input') vars[v.id] = false;
     Object.assign(vars, machineInputs(machine, sysRef.current, lastActualRef.current));
-    if (machine === 'cuve') vars.bAru = incident === 'fCable' ? false : !aruLatchedRef.current;
+    vars.bAru = incident === 'fCable' ? false : !aruLatchedRef.current;
     if (pressRef.current.bMarche > 0) vars.bMarche = true;
     if (pressRef.current.bArret > 0) vars.bArret = true;
     return vars;
@@ -120,7 +124,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
       const vars = inputVars();
       if (incident === 'fHaut') vars.sHaut = true;
       if (incident === 'fCapteur' && machine === 'robot') vars.pDroite = true;
-      if (incident === 'fCable' && machine === 'cuve') vars.bAru = false;
+      if (incident === 'fCable') vars.bAru = false;
       if (incident === 'fNiveau' && machine === 'ecluse') vars.nAm = true;
       if (incident === 'fCapteur' && machine === 'pniveau') vars.dEntree = true;
       const run = runProgram(mode, program, vars, interpRef.current, {
@@ -249,7 +253,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
               <Text style={styles.btnText}>ARRÊT</Text>
             </Pressable>
           </View>
-          {machine === 'cuve' ? (
+          {(
             <>
               <View style={styles.row}>
                 <Pressable
@@ -269,7 +273,7 @@ export function SimulationScreen({ mode, machine, onBack, onHome }: Controls) {
                 AU à contact NF : bAru = true circuit sain, false appui AU ou câble coupé.
               </Text>
             </>
-          ) : null}
+          )}
           <Text style={styles.hint}>
             Impulsion de {PRESS_TICKS * TICK_MS} ms : mémorise la demande dans ton programme.
           </Text>

@@ -340,6 +340,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'l1', label: 'L1 (retour)', kind: 'input', detail: 'Retour lampes voie 1 : true si une lampe de la voie 1 est réellement allumée' },
       { id: 'l2', label: 'L2 (retour)', kind: 'input', detail: 'Retour lampes voie 2 : true si une lampe de la voie 2 est réellement allumée' },
       { id: 'r1', label: 'R1', kind: 'output', detail: 'Feu rouge voie 1' },
@@ -369,6 +370,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'dEntree', label: 'D-ENTREE', kind: 'input', detail: 'Capteur arrivée : un colis est en tête de tapis' },
       { id: 'dTri', label: 'D-TRI', kind: 'input', detail: 'Capteur point de tri : un colis est dans la zone du poussoir' },
       { id: 'tTag', label: 'FRAGILE', kind: 'input', detail: 'Lecteur d’étiquette : le colis en zone de tri est fragile (type A)' },
@@ -397,6 +399,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche »' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'pGauche', label: 'P-G', kind: 'input', detail: 'Capteur chariot à l’origine' },
       { id: 'pMilieu', label: 'P-M', kind: 'input', detail: 'Capteur début de pièce' },
       { id: 'pDroite', label: 'P-D', kind: 'input', detail: 'Capteur fin de course droite' },
@@ -425,6 +428,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche » (mise en service)' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'dEntree', label: 'D-1 AMONT', kind: 'input', detail: 'Capteur amont : train détecté, il approche du passage' },
       { id: 'dSortie', label: 'D-2 AVAL', kind: 'input', detail: 'Capteur aval : le train a dépassé le passage' },
       { id: 'rB', label: 'B-RET (retour)', kind: 'input', detail: 'Retour barrière : true si la barrière est réellement descendue' },
@@ -450,6 +454,7 @@ export const MACHINES: Record<MachineId, MachineDef> = {
     vars: [
       { id: 'bMarche', label: 'MARCHE', kind: 'input', detail: 'Bouton poussoir « Marche » (mise en service)' },
       { id: 'bArret', label: 'ARRÊT', kind: 'input', detail: 'Bouton poussoir « Arrêt »' },
+      { id: 'bAru', label: 'AU (NF)', kind: 'input', detail: 'Arrêt d’urgence à contact normalement fermé : true = circuit sain, false = appui AU ou coupure de câble' },
       { id: 'dAm', label: 'D-DET AM', kind: 'input', detail: 'Un bateau attend devant la porte amont (il veut descendre)' },
       { id: 'dAv', label: 'D-DET AV', kind: 'input', detail: 'Un bateau attend devant la porte aval (il veut monter)' },
       { id: 'dSas', label: 'D-SAS', kind: 'input', detail: 'Un bateau est dans le sas (entre les deux portes)' },
@@ -523,9 +528,11 @@ export function machineInputs(
     vars.sMoyen = s.level >= 50;
     vars.sHaut = s.level >= 95;
   } else if (machine === 'feux') {
+    vars.bAru = true;
     vars.l1 = !!(actual.o1 || actual.v1 || actual.r1);
     vars.l2 = !!(actual.o2 || actual.v2 || actual.r2);
   } else if (machine === 'convoyeur' && s.kind === 'convoyeur') {
+    vars.bAru = true;
     vars.dEntree = s.parts.some((p) => p.pos <= D_ENTEREE_END);
     const inZone = s.parts.filter((p) => p.pos >= TRI_START && p.pos <= TRI_END);
     let front: ConvoyeurPart | null = null;
@@ -535,11 +542,13 @@ export function machineInputs(
     vars.bMvt = s.moveActual;
     vars.pRet = !!actual.poussoir;
   } else if (machine === 'robot' && s.kind === 'robot') {
+    vars.bAru = true;
     vars.pGauche = s.x <= 2;
     vars.pMilieu = s.x >= ROBOT_MID_LO && s.x <= ROBOT_MID_HI;
     vars.pDroite = s.x >= ROBOT_RIGHT;
     vars.rp = !!actual.bombe;
   } else if (machine === 'ecluse' && s.kind === 'ecluse') {
+    vars.bAru = true;
     vars.dAm = s.boat === 'amont';
     vars.dAv = s.boat === 'aval';
     vars.dSas = s.boat === 'sas';
@@ -550,6 +559,7 @@ export function machineInputs(
     vars.nAm = s.lvl >= 95;
     vars.nAv = s.lvl <= 5;
   } else if (machine === 'pniveau' && s.kind === 'pniveau') {
+    vars.bAru = true;
     vars.dEntree = s.train !== null && s.train >= PN_IN_A && s.train <= PN_IN_B;
     vars.dSortie = s.train !== null && s.train >= PN_OUT;
     vars.rB = s.barPos >= 95;

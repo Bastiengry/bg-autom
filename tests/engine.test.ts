@@ -190,11 +190,13 @@ function runFeuxGrafcetStop() {
     if (i === 24) {
       assert(interp.active.length === 1 && interp.active[0] === 0,
         `grafcet feux stop: retour \u00e0 l'\u00e9tape initiale attendu, actif ${JSON.stringify(interp.active)}`);
-      assert(!r.outputs.v1 && !r.outputs.v2 && !r.outputs.r1 && !r.outputs.r2,
-        'grafcet feux stop: toutes les sorties doivent \u00eatre coup\u00e9es \u00e0 l\u2019\u00e9tape initiale');
+      assert(r.outputs.r1 && r.outputs.r2,
+        `grafcet feux stop: les deux voies doivent \u00eatre au rouge \u00e0 l\u2019\u00e9tape initiale, out ${JSON.stringify(r.outputs)}`);
+      assert(!r.outputs.v1 && !r.outputs.v2 && !r.outputs.o1 && !r.outputs.o2,
+        'grafcet feux stop: vert et orange doivent \u00eatre off \u00e0 l\u2019\u00e9tape initiale');
     }
   }
-  console.log('\u2713 Grafcet feux : ARR\u00eat \u2192 retour \u00e0 la premi\u00e8re \u00e9tape (tout \u00e9teint), MARCHE relance');
+  console.log('\u2713 Grafcet feux : ARR\u00eat \u2192 retour \u00e0 la premi\u00e8re \u00e9tape (tout rouge, \u00e9tat s\u00fbr), MARCHE relance');
 }
 
 test('runLadderCuveStop', () => runLadderCuveStop());
@@ -376,7 +378,7 @@ function runConvoyeurIncoherenceMoteur() {
   const program = exampleLadder('convoyeur');
   let interp = initInterpState();
   let interped = null;
-  const vars = { bMarche: true, bArret: false, dEntree: true, dTri: false, tTag: false, bMvt: false, pRet: false };
+  const vars = { bMarche: true, bArret: false, dEntree: true, dTri: false, tTag: false, bMvt: false, pRet: false, bAru: true };
   let moteurOn = false;
   for (let i = 0; i < 20; i++) {
     const r = runProgram('ladder', program, { ...vars, ...(interped ? {} : {}) }, interp, { level: 0 });

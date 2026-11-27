@@ -18,19 +18,26 @@ const aruBranch = (): { condition: Condition[]; goto: number } => ({
   condition: [notV('bAru')],
   goto: 0,
 });
+const edgeArret = (): Condition => ({ type: 'edge', varId: 'bArret', dir: 'rising' });
+// transition jamais vraie (contact et sa negation) : une etape dont toutes les sorties
+// passent par alt garde ainsi son tempo d'etape sans franchir vers next.
+const never = (x: string): Condition[] => [v(x), notV(x)];
 
 function cuveGrafcet(): GrafcetProgram {
+  // Arret ARRÊT de categorie 1 (IEC 60204-1) : la cuve TERMINE la phase en cours
+  // (front ↑ de bArret → mémoriser via M1, finir la phase, puis attendre MARCHE).
+  // L’AU (bAru NF) reste un arrêt de catégorie 0 : coupure immédiate (branche aru).
   const p = emptyGrafcet();
   p.nodes = [
-    { actions: [], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'M1', mode: 'reset' }], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
     {
       actions: [
         { varId: 'vanneR', mode: 'level' },
         { varId: 'voyVert', mode: 'level' },
       ],
-      transition: [v('sHaut')],
+      transition: never('sHaut'),
       afterSeconds: null,
-      alt: [stopBranch(), aruBranch()],
+      alt: [aruBranch(), { condition: [edgeArret()], goto: 3 }, { condition: [v('sHaut')], goto: 2 }],
       forks: [],
       waitsFor: [],
     },
@@ -39,12 +46,37 @@ function cuveGrafcet(): GrafcetProgram {
         { varId: 'pompeV', mode: 'level' },
         { varId: 'voyRouge', mode: 'level' },
       ],
-      transition: [v('sBas')],
+      transition: never('sBas'),
       afterSeconds: null,
-      alt: [stopBranch(), aruBranch()],
+      alt: [aruBranch(), { condition: [edgeArret()], goto: 4 }, { condition: [v('sBas')], goto: 1 }],
       forks: [],
       waitsFor: [],
     },
+    {
+      actions: [
+        { varId: 'M1', mode: 'set' },
+        { varId: 'vanneR', mode: 'level' },
+        { varId: 'voyVert', mode: 'level' },
+      ],
+      transition: never('sHaut'),
+      afterSeconds: null,
+      alt: [aruBranch(), { condition: [v('sHaut')], goto: 5 }],
+      forks: [],
+      waitsFor: [],
+    },
+    {
+      actions: [
+        { varId: 'M1', mode: 'set' },
+        { varId: 'pompeV', mode: 'level' },
+        { varId: 'voyRouge', mode: 'level' },
+      ],
+      transition: [v('sBas')],
+      afterSeconds: null,
+      alt: [aruBranch()],
+      forks: [],
+      waitsFor: [],
+    },
+    { actions: [{ varId: 'M1', mode: 'reset' }], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
   ];
   p.loopTo = 1;
   return p;
@@ -53,7 +85,18 @@ function cuveGrafcet(): GrafcetProgram {
 function feuxGrafcet(): GrafcetProgram {
   const p = emptyGrafcet();
   p.nodes = [
-    { actions: [], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    {
+      // Repos = les deux voies au rouge (etat sür). MARCHE n’est effective que si l’AU (NF) est sain.
+      actions: [
+        { varId: 'r1', mode: 'level' },
+        { varId: 'r2', mode: 'level' },
+      ],
+      transition: [v('bMarche'), v('bAru')],
+      afterSeconds: null,
+      alt: [],
+      forks: [],
+      waitsFor: [],
+    },
     {
       actions: [
         { varId: 'r1', mode: 'level' },
@@ -61,7 +104,7 @@ function feuxGrafcet(): GrafcetProgram {
       ],
       transition: [],
       afterSeconds: 5,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -72,7 +115,7 @@ function feuxGrafcet(): GrafcetProgram {
       ],
       transition: [],
       afterSeconds: 2,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -83,7 +126,7 @@ function feuxGrafcet(): GrafcetProgram {
       ],
       transition: [],
       afterSeconds: 5,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -94,7 +137,7 @@ function feuxGrafcet(): GrafcetProgram {
       ],
       transition: [],
       afterSeconds: 2,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -106,12 +149,12 @@ function feuxGrafcet(): GrafcetProgram {
 function convoyeurGrafcet(): GrafcetProgram {
   const p = emptyGrafcet();
   p.nodes = [
-    { actions: [], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'voyRouge', mode: 'level' }], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
     {
       actions: [{ varId: 'moteur', mode: 'level' }],
       transition: [v('dTri'), v('tTag')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -119,7 +162,7 @@ function convoyeurGrafcet(): GrafcetProgram {
       actions: [{ varId: 'poussoir', mode: 'level' }],
       transition: [],
       afterSeconds: 0.4,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -131,12 +174,12 @@ function convoyeurGrafcet(): GrafcetProgram {
 function robotGrafcet(): GrafcetProgram {
   const p = emptyGrafcet();
   p.nodes = [
-    { actions: [], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'voyRouge', mode: 'level' }], transition: [v('bMarche')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
     {
       actions: [{ varId: 'avancer', mode: 'level' }],
       transition: [v('pMilieu')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -147,7 +190,7 @@ function robotGrafcet(): GrafcetProgram {
       ],
       transition: [v('pDroite')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -155,7 +198,7 @@ function robotGrafcet(): GrafcetProgram {
       actions: [{ varId: 'reculer', mode: 'level' }],
       transition: [v('pGauche')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
@@ -165,6 +208,8 @@ function robotGrafcet(): GrafcetProgram {
 }
 
 function pniveauGrafcet(): GrafcetProgram {
+  // AU (NF) : la barriere se FERME (etat sur) et les feux s'allument, tant que le defaut dure.
+  const aruFerme = (): { condition: Condition[]; goto: number } => ({ condition: [notV('bAru')], goto: 1 });
   const p = emptyGrafcet();
   p.nodes = [
     { actions: [], transition: [v('dEntree')], afterSeconds: null, alt: [], forks: [], waitsFor: [] },
@@ -175,11 +220,11 @@ function pniveauGrafcet(): GrafcetProgram {
       ],
       transition: [v('dSortie')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruFerme()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [], transition: [], afterSeconds: 2, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [], transition: [], afterSeconds: 2, alt: [stopBranch(), aruFerme()], forks: [], waitsFor: [] },
   ];
   p.loopTo = 0;
   return p;
@@ -196,11 +241,11 @@ function ecluseGrafcet(): GrafcetProgram {
       actions: [],
       transition: [v('dAm')],
       afterSeconds: null,
-      alt: [{ condition: [v('dAv')], goto: 8 }, stopBranch()],
+      alt: [{ condition: [v('dAv')], goto: 8 }, stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
     {
       actions: [
         { varId: 'mPmon', mode: 'level' },
@@ -208,12 +253,12 @@ function ecluseGrafcet(): GrafcetProgram {
       ],
       transition: [v('dSas')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
-    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
     {
       actions: [
         { varId: 'mPval', mode: 'level' },
@@ -221,20 +266,20 @@ function ecluseGrafcet(): GrafcetProgram {
       ],
       transition: [notV('dSas')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
     {
       actions: [],
       transition: [v('dAv')],
       afterSeconds: null,
-      alt: [loopMont, stopBranch()],
+      alt: [loopMont, stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vVid', mode: 'level' }], transition: [v('nAv')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
     {
       actions: [
         { varId: 'mPval', mode: 'level' },
@@ -242,12 +287,12 @@ function ecluseGrafcet(): GrafcetProgram {
       ],
       transition: [v('dSas')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
-    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [], transition: [v('pAvFerm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
+    { actions: [{ varId: 'vRem', mode: 'level' }], transition: [v('nAm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
     {
       actions: [
         { varId: 'mPmon', mode: 'level' },
@@ -255,11 +300,11 @@ function ecluseGrafcet(): GrafcetProgram {
       ],
       transition: [notV('dSas')],
       afterSeconds: null,
-      alt: [stopBranch()],
+      alt: [stopBranch(), aruBranch()],
       forks: [],
       waitsFor: [],
     },
-    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch()], forks: [], waitsFor: [] },
+    { actions: [], transition: [v('pAmFerm')], afterSeconds: null, alt: [stopBranch(), aruBranch()], forks: [], waitsFor: [] },
   ];
   p.loopTo = 1;
   return p;
@@ -313,10 +358,10 @@ function feuxLadder(): LadderProgram {
       {
         output: 'Mstop',
         coilType: 'set',
-        terms: [{ type: 'edge', varId: 'bArret', dir: 'rising' }, v('Mstop')],
-        junctions: ['OR'],
+        terms: [{ type: 'edge', varId: 'bArret', dir: 'rising' }, v('Mstop'), notV('bAru')],
+        junctions: ['OR', 'OR'],
       },
-      { output: 'Mstop', coilType: 'reset', terms: [v('bMarche')], junctions: [] },
+      { output: 'Mstop', coilType: 'reset', terms: [v('bMarche'), v('bAru')], junctions: ['AND'] },
       {
         output: 'M1',
         coilType: 'set',
@@ -348,8 +393,8 @@ function convoyeurLadder(): LadderProgram {
       {
         output: 'moteur',
         coilType: 'coil',
-        terms: [v('bMarche'), v('moteur'), notV('bArret'), notV('M1'), notV('M2')],
-        junctions: ['OR', 'AND', 'AND', 'AND'],
+        terms: [v('bMarche'), v('moteur'), notV('bArret'), v('bAru'), notV('M1'), notV('M2')],
+        junctions: ['OR', 'AND', 'AND', 'AND', 'AND'],
       },
       {
         output: 'M1',
@@ -378,11 +423,11 @@ function convoyeurLadder(): LadderProgram {
       {
         output: 'poussoir',
         coilType: 'coil',
-        terms: [v('dTri'), v('tTag'), notV('bArret'), notV('M1'), notV('M2')],
-        junctions: ['AND', 'AND', 'AND', 'AND'],
+        terms: [v('dTri'), v('tTag'), notV('bArret'), v('bAru'), notV('M1'), notV('M2')],
+        junctions: ['AND', 'AND', 'AND', 'AND', 'AND'],
       },
       { output: 'voyVert', coilType: 'coil', terms: [v('moteur')], junctions: [] },
-      { output: 'voyRouge', coilType: 'coil', terms: [v('M1'), v('M2')], junctions: ['OR'] },
+      { output: 'voyRouge', coilType: 'coil', terms: [v('M1'), v('M2'), notV('bAru')], junctions: ['OR', 'OR'] },
     ],
   };
 }
@@ -395,28 +440,28 @@ function robotLadder(): LadderProgram {
       {
         output: 'avancer',
         coilType: 'coil',
-        terms: [v('M3'), v('pGauche'), v('bMarche'), v('avancer'), notV('pDroite'), notV('bArret'), notV('M1')],
-        junctions: ['AND', 'OR', 'OR', 'AND', 'AND', 'AND'],
+        terms: [v('M3'), v('pGauche'), v('bMarche'), v('avancer'), notV('pDroite'), notV('bArret'), v('bAru'), notV('M1')],
+        junctions: ['AND', 'OR', 'OR', 'AND', 'AND', 'AND', 'AND'],
       },
       { output: 'M3', coilType: 'set', terms: [v('bMarche')], junctions: [] },
       { output: 'M3', coilType: 'reset', terms: [v('bArret')], junctions: [] },
       {
         output: 'reculer',
         coilType: 'coil',
-        terms: [v('pDroite'), v('reculer'), notV('pGauche'), notV('M1')],
-        junctions: ['OR', 'AND', 'AND'],
+        terms: [v('pDroite'), v('reculer'), notV('pGauche'), v('bAru'), notV('M1')],
+        junctions: ['OR', 'AND', 'AND', 'AND'],
       },
       {
         output: 'bombe',
         coilType: 'set',
-        terms: [v('pMilieu'), v('avancer'), notV('bArret'), notV('M1'), notV('M2')],
-        junctions: ['AND', 'AND', 'AND', 'AND'],
+        terms: [v('pMilieu'), v('avancer'), notV('bArret'), v('bAru'), notV('M1'), notV('M2')],
+        junctions: ['AND', 'AND', 'AND', 'AND', 'AND'],
       },
       {
         output: 'bombe',
         coilType: 'reset',
-        terms: [v('pDroite'), v('reculer'), v('bArret')],
-        junctions: ['OR', 'OR'],
+        terms: [v('pDroite'), v('reculer'), v('bArret'), notV('bAru')],
+        junctions: ['OR', 'OR', 'OR'],
       },
       {
         output: 'M1',
@@ -433,7 +478,7 @@ function robotLadder(): LadderProgram {
       { output: 'M2', coilType: 'set', terms: [v('pGauche'), v('pDroite')], junctions: ['AND'] },
       { output: 'M2', coilType: 'reset', terms: [notV('pDroite')], junctions: [] },
       { output: 'voyVert', coilType: 'coil', terms: [v('pGauche')], junctions: [] },
-      { output: 'voyRouge', coilType: 'coil', terms: [v('M1'), v('M2')], junctions: ['OR'] },
+      { output: 'voyRouge', coilType: 'coil', terms: [v('M1'), v('M2'), notV('bAru')], junctions: ['OR', 'OR'] },
     ],
   };
 }
@@ -450,7 +495,7 @@ function pniveauLadder(): LadderProgram {
     ],
     counters: [],
     rungs: [
-      { output: 'barriere', coilType: 'set', terms: [v('dEntree')], junctions: [] },
+      { output: 'barriere', coilType: 'set', terms: [v('dEntree'), notV('bAru')], junctions: ['OR'] },
       { output: 'barriere', coilType: 'reset', terms: [v('dSortie')], junctions: [] },
       { output: 'feux', coilType: 'coil', terms: [v('barriere')], junctions: [] },
       { output: 'M1', coilType: 'set', terms: [v('dEntree'), v('dSortie')], junctions: ['AND'] },
@@ -460,7 +505,7 @@ function pniveauLadder(): LadderProgram {
         terms: [notV('dEntree'), notV('dSortie')],
         junctions: ['AND'],
       },
-      { output: 'alarme', coilType: 'coil', terms: [tq('t1'), v('M1')], junctions: ['OR'] },
+      { output: 'alarme', coilType: 'coil', terms: [tq('t1'), v('M1'), notV('bAru')], junctions: ['OR', 'OR'] },
     ],
   };
 }
@@ -509,14 +554,14 @@ function ecluseLadder(): LadderProgram {
       { output: 'MouvAv', coilType: 'set', terms: [v('dAv'), v('nAv'), notV('alarme')], junctions: ['AND', 'AND'] },
       { output: 'MouvAv', coilType: 'set', terms: [v('dSas'), v('Rdesc'), v('nAv'), notV('alarme')], junctions: ['AND', 'AND', 'AND'] },
       // Sorties.
-      { output: 'mPmon', coilType: 'coil', terms: [v('MouvAm'), notV('bArret')], junctions: ['AND'] },
-      { output: 'mPval', coilType: 'coil', terms: [v('MouvAv'), notV('bArret')], junctions: ['AND'] },
-      { output: 'vRem', coilType: 'coil', terms: [v('Mrem'), notV('bArret')], junctions: ['AND'] },
-      { output: 'vVid', coilType: 'coil', terms: [v('Mvid'), notV('bArret')], junctions: ['AND'] },
+      { output: 'mPmon', coilType: 'coil', terms: [v('MouvAm'), notV('bArret'), v('bAru')], junctions: ['AND', 'AND'] },
+      { output: 'mPval', coilType: 'coil', terms: [v('MouvAv'), notV('bArret'), v('bAru')], junctions: ['AND', 'AND'] },
+      { output: 'vRem', coilType: 'coil', terms: [v('Mrem'), notV('bArret'), v('bAru')], junctions: ['AND', 'AND'] },
+      { output: 'vVid', coilType: 'coil', terms: [v('Mvid'), notV('bArret'), v('bAru')], junctions: ['AND', 'AND'] },
       { output: 'fVam', coilType: 'coil', terms: [v('mPmon')], junctions: [] },
       { output: 'fVav', coilType: 'coil', terms: [v('mPval')], junctions: [] },
       // Defauts : incoherence N-AM/N-AV ; porte commandee mais jamais ouverte (TON 2 s).
-      { output: 'alarme', coilType: 'set', terms: [tq('t1'), tq('t2'), v('nAm'), v('nAv')], junctions: ['OR', 'OR', 'AND'] },
+      { output: 'alarme', coilType: 'set', terms: [tq('t1'), tq('t2'), v('nAm'), v('nAv'), notV('bAru')], junctions: ['OR', 'OR', 'AND', 'OR'] },
       { output: 'alarme', coilType: 'reset', terms: [v('bArret')], junctions: [] },
     ],
   };
@@ -547,7 +592,8 @@ function feuxBlocks(): BlocksProgram {
   p.rules = [
     { when: [notV('bMarche')], then: ['r1', 'r2'] },
     { when: [v('bArret')], then: ['r1', 'r2'] },
-    { when: [v('bMarche'), notV('bArret')], then: ['r1', 'v2'] },
+    { when: [notV('bAru')], then: ['r1', 'r2'] },
+    { when: [v('bMarche'), notV('bArret'), v('bAru')], then: ['r1', 'v2'] },
   ];
   return p;
 }
@@ -555,10 +601,11 @@ function feuxBlocks(): BlocksProgram {
 function convoyeurBlocks(): BlocksProgram {
   const p = emptyBlocks();
   p.rules = [
-    { when: [notV('bArret')], then: ['moteur'] },
-    { when: [v('dTri'), v('tTag'), notV('bArret')], then: ['poussoir'] },
+    { when: [notV('bArret'), v('bAru')], then: ['moteur'] },
+    { when: [v('dTri'), v('tTag'), notV('bArret'), v('bAru')], then: ['poussoir'] },
     { when: [v('dTri'), notV('tTag')], then: ['voyVert'] },
     { when: [v('bArret')], then: ['voyRouge'] },
+    { when: [notV('bAru')], then: ['voyRouge'] },
   ];
   return p;
 }
@@ -566,11 +613,12 @@ function convoyeurBlocks(): BlocksProgram {
 function robotBlocks(): BlocksProgram {
   const p = emptyBlocks();
   p.rules = [
-    { when: [notV('pDroite'), notV('bArret')], then: ['avancer'] },
-    { when: [v('pDroite'), notV('bArret')], then: ['reculer'] },
-    { when: [v('pMilieu'), notV('bArret')], then: ['bombe'] },
+    { when: [notV('pDroite'), notV('bArret'), v('bAru')], then: ['avancer'] },
+    { when: [v('pDroite'), notV('bArret'), v('bAru')], then: ['reculer'] },
+    { when: [v('pMilieu'), notV('bArret'), v('bAru')], then: ['bombe'] },
     { when: [v('pGauche')], then: ['voyVert'] },
     { when: [v('bArret')], then: ['voyRouge'] },
+    { when: [notV('bAru')], then: ['voyRouge'] },
   ];
   return p;
 }
@@ -578,8 +626,9 @@ function robotBlocks(): BlocksProgram {
 function pniveauBlocks(): BlocksProgram {
   const p = emptyBlocks();
   p.rules = [
-    { when: [v('dEntree')], then: ['barriere', 'feux'] },
-    { when: [v('dSortie')], then: ['voyVert'] },
+    { when: [notV('bAru')], then: ['barriere', 'feux', 'alarme'] },
+    { when: [v('dEntree'), v('bAru')], then: ['barriere', 'feux'] },
+    { when: [v('dSortie'), v('bAru')], then: ['voyVert'] },
   ];
   return p;
 }
@@ -589,12 +638,13 @@ function ecluseBlocks(): BlocksProgram {
   // La montée exigerait de memoriser le côté d’entrée (Grafcet et Ladder le font).
   const p = emptyBlocks();
   p.rules = [
-    { when: [v('dAm'), notV('nAm'), notV('bArret')], then: ['vRem'] },
-    { when: [v('dAm'), v('nAm'), notV('bArret')], then: ['mPmon', 'fVam'] },
-    { when: [v('dSas'), notV('dAm'), notV('nAv'), notV('bArret')], then: ['vVid'] },
-    { when: [v('dSas'), v('nAv')], then: ['mPval', 'fVav'] },
+    { when: [v('dAm'), notV('nAm'), notV('bArret'), v('bAru')], then: ['vRem'] },
+    { when: [v('dAm'), v('nAm'), notV('bArret'), v('bAru')], then: ['mPmon', 'fVam'] },
+    { when: [v('dSas'), notV('dAm'), notV('nAv'), notV('bArret'), v('bAru')], then: ['vVid'] },
+    { when: [v('dSas'), v('nAv'), v('bAru')], then: ['mPval', 'fVav'] },
     { when: [v('nAm'), v('nAv')], then: ['alarme'] },
     { when: [v('bArret')], then: ['alarme'] },
+    { when: [notV('bAru')], then: ['alarme'] },
   ];
   return p;
 }
