@@ -182,7 +182,9 @@ function runGrafcet(
   }
   const outputsAll = { ...mem3, ...out };
 
-  const stillActive = starting.filter((i) => nextSet.has(i));
+  // Un noeud qui a franchi sa transition (deactivating) et qui re-apparait dans nextSet
+  // (ex. rebouclage loopTo sur lui-meme) est RE-ENTRE : sa tempo d'etape doit se re-armer.
+  const stillActive = starting.filter((i) => !deactivating.includes(i));
   const nextStepMs =
     newActive.length === stillActive.length && newActive.every((i) => stillActive.includes(i))
       ? state.stepMs + TICK_MS

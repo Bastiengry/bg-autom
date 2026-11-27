@@ -172,7 +172,7 @@ src/
   state/          # programs.tsx : persistance AsyncStorage (contexte React)
   system/         # machines.ts : physique des 6 machines, registres de variables, objectifs
   types.ts        # types partagés (Condition union, programmes, machines)
-tests/            # tests moteur (npm test)
+tests/            # tests Jest (npm test)
 ```
 
 ## Développement
@@ -182,7 +182,9 @@ npm install
 npm start          # Expo dev server
 npx tsc --noEmit   # typecheck
 npx expo lint      # lint
-npm test           # tests moteur (6 machines × Grafcet/Ladder/Blocs + incidents)
+npm test           # tests Jest : moteur (6 machines × Grafcet/Ladder/Blocs, incidents,
+                   # AU NF, fronts), temporisations TON/TOF/TP, compteurs CTU/CTD,
+                   # forks/waitsFor/loopTo, helpers de l'éditeur de conditions
 ```
 
 ### APK Android

@@ -2,37 +2,13 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../theme';
 import type { Condition, MachineId } from '../types';
-import { Chip, ItemPicker, type PickerItem } from './ui';
+import { Chip, ItemPicker } from './ui';
 import { MACHINES } from '../system/machines';
+import { conditionLabel, contactItems, frontItems } from '../system/conditions';
+
+export { conditionLabel, contactItems } from '../system/conditions';
 
 type AnyCondition = Condition;
-
-export function conditionLabel(c: AnyCondition, machine: MachineId): string {
-  const vars = MACHINES[machine].vars;
-  const varLabel = (id: string) => vars.find((v) => v.id === id)?.label ?? id;
-  switch (c.type) {
-    case 'var':
-      return `${c.negated ? '/' : ''}${varLabel(c.varId)}`;
-    case 'edge':
-      return `front ${c.dir === 'rising' ? '↑' : '↓'} ${varLabel(c.varId)}`;
-    case 'level':
-      return `${c.op === '>=' ? 'Niveau ≥' : 'Niveau ≤'} ${c.value} %`;
-    case 'timerContact':
-      return `${c.timerId}.Q`;
-    case 'counterContact':
-      return `${c.counterId}.Q`;
-    default:
-      return '?';
-  }
-}
-
-export function contactItems(machine: MachineId): PickerItem[] {
-  return MACHINES[machine].vars.map((v) => ({
-    id: `var:${v.id}`,
-    label: v.label,
-    detail: v.detail,
-  }));
-}
 
 export default function ConditionListEditor({
   conditions,
@@ -73,11 +49,6 @@ export default function ConditionListEditor({
     onChange(next);
   };
 
-  const frontItems = (): PickerItem[] =>
-    MACHINES[machine].vars
-      .filter((v) => v.kind === 'input')
-      .map((v) => ({ id: `var:${v.id}`, label: v.label, detail: v.detail }));
-
   return (
     <View style={styles.wrap}>
       {conditions.length === 0 ? <Text style={styles.hint}>{emptyHint}</Text> : null}
@@ -114,7 +85,7 @@ export default function ConditionListEditor({
       <ItemPicker
         visible={modal === 'front'}
         title="Front (entrée seulement)"
-        items={frontItems()}
+        items={frontItems(machine)}
         onSelect={(id) => {
           addFront(id);
           setModal(null);

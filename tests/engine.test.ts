@@ -1,7 +1,7 @@
-const assert = require('node:assert');
-const { runProgram, initInterpState } = require('../.test-out/engine/interpreters.js');
-const { initSystem, stepSystem, machineInputs, numericOf } = require('../.test-out/system/machines.js');
-const { exampleGrafcet, exampleLadder, exampleBlocks } = require('../.test-out/programs/examples.js');
+import assert from 'node:assert';
+import { runProgram, initInterpState } from '../src/engine/interpreters';
+import { initSystem, stepSystem, machineInputs, numericOf } from '../src/system/machines';
+import { exampleGrafcet, exampleLadder, exampleBlocks } from '../src/programs/examples';
 
 const TICKS_PER_S = 10;
 const tick = (machine, vars, sys, interp, mode, program, actual = {}) => {
@@ -117,12 +117,12 @@ function runFeuxBlocks() {
   console.log(`\u2713 Blocks feux : phase ${sys.phase}, 0 conflit`);
 }
 
-runCuveGrafcet();
-runCuveLadder();
-runCuveBlocks();
-runFeuxGrafcet();
-runFeuxLadder();
-runFeuxBlocks();
+test('runCuveGrafcet', () => runCuveGrafcet());
+test('runCuveLadder', () => runCuveLadder());
+test('runCuveBlocks', () => runCuveBlocks());
+test('runFeuxGrafcet', () => runFeuxGrafcet());
+test('runFeuxLadder', () => runFeuxLadder());
+test('runFeuxBlocks', () => runFeuxBlocks());
 
 
 function runLadderCuveStop() {
@@ -197,9 +197,9 @@ function runFeuxGrafcetStop() {
   console.log('\u2713 Grafcet feux : ARR\u00eat \u2192 retour \u00e0 la premi\u00e8re \u00e9tape (tout \u00e9teint), MARCHE relance');
 }
 
-runLadderCuveStop();
-runFeuxLadderStop();
-runFeuxGrafcetStop();
+test('runLadderCuveStop', () => runLadderCuveStop());
+test('runFeuxLadderStop', () => runFeuxLadderStop());
+test('runFeuxGrafcetStop', () => runFeuxGrafcetStop());
 
 
 
@@ -241,8 +241,8 @@ function runFeuxFeedbackSafeMode() {
   console.log('\u2713 Incident feux : for\u00e7age de sortie d\u00e9tect\u00e9 via retour lampe \u2192 mode s\u00fbr (R1+R2)');
 }
 
-runCuveIncoherenceDetect();
-runFeuxFeedbackSafeMode();
+test('runCuveIncoherenceDetect', () => runCuveIncoherenceDetect());
+test('runFeuxFeedbackSafeMode', () => runFeuxFeedbackSafeMode());
 
 
 function runConvoyeurGrafcet() {
@@ -363,18 +363,17 @@ function runPniveauLadder() {
   console.log(`\u2713 Ladder passage \u00e0 niveau : ${sys.trains} trains, 0 danger, pas de fausse alarme`);
 }
 
-runConvoyeurGrafcet();
-runConvoyeurLadder();
-runConvoyeurBlocks();
-runRobotGrafcet();
-runRobotLadder();
-runPniveauGrafcet();
-runPniveauLadder();
+test('runConvoyeurGrafcet', () => runConvoyeurGrafcet());
+test('runConvoyeurLadder', () => runConvoyeurLadder());
+test('runConvoyeurBlocks', () => runConvoyeurBlocks());
+test('runRobotGrafcet', () => runRobotGrafcet());
+test('runRobotLadder', () => runRobotLadder());
+test('runPniveauGrafcet', () => runPniveauGrafcet());
+test('runPniveauLadder', () => runPniveauLadder());
 
 
 function runConvoyeurIncoherenceMoteur() {
-  const { exampleLadder: ex } = require('../.test-out/programs/examples.js');
-  const program = ex('convoyeur');
+  const program = exampleLadder('convoyeur');
   let interp = initInterpState();
   let interped = null;
   const vars = { bMarche: true, bArret: false, dEntree: true, dTri: false, tTag: false, bMvt: false, pRet: false };
@@ -394,8 +393,7 @@ function runConvoyeurIncoherenceMoteur() {
 }
 
 function runPniveauBarriereBloqueeAlarme() {
-  const { exampleLadder: ex } = require('../.test-out/programs/examples.js');
-  const program = ex('pniveau');
+  const program = exampleLadder('pniveau');
   let interp = initInterpState();
   const vars = { bMarche: false, bArret: false, dEntree: true, dSortie: false, rB: false };
   let alarm = false;
@@ -409,8 +407,8 @@ function runPniveauBarriereBloqueeAlarme() {
   console.log('\u2713 Incident passage \u00e0 niveau : BARRI\u00c8RE command\u00e9e sans B-RET (TON 2 s) \u2192 ALARME');
 }
 
-runConvoyeurIncoherenceMoteur();
-runPniveauBarriereBloqueeAlarme();
+test('runConvoyeurIncoherenceMoteur', () => runConvoyeurIncoherenceMoteur());
+test('runPniveauBarriereBloqueeAlarme', () => runPniveauBarriereBloqueeAlarme());
 
 
 function runCuveAruLadder() {
@@ -500,9 +498,9 @@ function runCuveBlocksAru() {
   console.log('\u2713 Blocs cuve AU NF : bAru = false coupe VANNE R et allume VOY. R, remise en circuit sans mémoire');
 }
 
-runCuveAruLadder();
-runCuveAruGrafcet();
-runCuveBlocksAru();
+test('runCuveAruLadder', () => runCuveAruLadder());
+test('runCuveAruGrafcet', () => runCuveAruGrafcet());
+test('runCuveBlocksAru', () => runCuveBlocksAru());
 
 
 function tickEcluse(sys, interp, mode, program, vars, forceOut) {
@@ -665,15 +663,13 @@ function runBlocsFrontMontant() {
   console.log('\u2713 Blocs front montant : Y ne s\u2019allume qu\u2019au front \u2191 (avant : jamais)');
 }
 
-runEcluseGrafcet();
-runEcluseLadder();
-runEcluseBlocks();
-runEcluseIncidentNiveau();
-runEcluseIncidentPorteBloquee();
-runGrafcetFrontMontant();
-runGrafcetFrontDescendantTrace();
-runBlocsFrontMontant();
-
-console.log('Tous les tests moteur passent.');
+test('runEcluseGrafcet', () => runEcluseGrafcet());
+test('runEcluseLadder', () => runEcluseLadder());
+test('runEcluseBlocks', () => runEcluseBlocks());
+test('runEcluseIncidentNiveau', () => runEcluseIncidentNiveau());
+test('runEcluseIncidentPorteBloquee', () => runEcluseIncidentPorteBloquee());
+test('runGrafcetFrontMontant', () => runGrafcetFrontMontant());
+test('runGrafcetFrontDescendantTrace', () => runGrafcetFrontDescendantTrace());
+test('runBlocsFrontMontant', () => runBlocsFrontMontant());
 
 
